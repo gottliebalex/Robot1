@@ -1,4 +1,4 @@
-// Copyright 2021-2025 FRC 6328
+﻿// Copyright 2021-2025 FRC 6328
 // http://github.com/Mechanical-Advantage
 //
 // This program is free software; you can redistribute it and/or
@@ -308,10 +308,10 @@ public class DriveCommands {
   public static Command alignToBlueReefFace(Drive drive, Branch branch) {
     Pose2d blueFace = FieldConstants.Reef.blueFacePose(branch);
     // Face toward the reef (inward: normal + 180°) in BLUE frame, then flip for RED
-    Pose2d blueInward =
-        new Pose2d(blueFace.getTranslation(), blueFace.getRotation().plus(new Rotation2d(Math.PI)));
-    Pose2d allianceTarget = allianceAwarePose(blueInward);
-    APTarget target = new APTarget(allianceTarget).withEntryAngle(allianceTarget.getRotation());
+    Pose2d allianceFace = allianceAwarePose(blueFace);
+    Rotation2d inward = allianceFace.getRotation().plus(new Rotation2d(Math.PI));
+    Pose2d allianceTarget = new Pose2d(allianceFace.getTranslation(), inward);
+    APTarget target = new APTarget(allianceTarget).withEntryAngle(inward);
     return drive.align(target);
   }
 
@@ -353,3 +353,4 @@ public class DriveCommands {
         flippedX, bluePose.getY(), bluePose.getRotation().plus(new Rotation2d(Math.PI)));
   }
 }
+

@@ -74,6 +74,8 @@ public class FieldConstants {
 
     public static Pose2d scoringPose(Branch branch, int level) {
       Pose2d blue = blueFacePose(branch);
+      Alliance alliance = DriverStation.getAlliance().orElse(Alliance.Blue);
+      Pose2d base = alliance == Alliance.Red ? allianceFlip(blue) : blue;
       double standoff =
           switch (level) {
             case 1 -> STANDOFF_L1;
@@ -82,18 +84,12 @@ public class FieldConstants {
             default -> STANDOFF_L4;
           };
       // Place target in front of the face (outside the reef) along the face normal
-      Translation2d offset = new Translation2d(standoff, 0).rotateBy(blue.getRotation());
-      // Desired scoring orientation faces the reef (inward: normal + 180°)
-      Pose2d blueWithOffsetInward =
-          new Pose2d(
-              blue.getTranslation().plus(offset),
-              blue.getRotation().plus(Rotation2d.fromDegrees(180)));
+      Translation2d offset = new Translation2d(standoff, 0).rotateBy(base.getRotation());
 
-      // Flip for RED if needed
-      Alliance alliance = DriverStation.getAlliance().orElse(Alliance.Blue);
-      return alliance == Alliance.Red ? allianceFlip(blueWithOffsetInward) : blueWithOffsetInward;
-      // If you have AllianceFlipUtil.apply(blueWithOffsetInward), use that instead of
-      // allianceFlip(...)
+      // Desired scoring orientation faces the reef (inward: normal + 180°)
+      return new Pose2d(
+          base.getTranslation().plus(offset),
+          base.getRotation().plus(Rotation2d.fromDegrees(180)));
     }
 
     /**
