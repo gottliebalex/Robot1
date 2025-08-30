@@ -21,7 +21,6 @@ import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
-import edu.wpi.first.wpilibj2.command.button.JoystickButton;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine;
 import frc.robot.commands.DriveCommands;
 import frc.robot.generated.TunerConstants;
@@ -31,16 +30,10 @@ import frc.robot.subsystems.drive.GyroIOPigeon2;
 import frc.robot.subsystems.drive.ModuleIO;
 import frc.robot.subsystems.drive.ModuleIOSim;
 import frc.robot.subsystems.drive.ModuleIOTalonFX;
-import frc.robot.commands.ElevatorCommands;
-import frc.robot.commands.WristCommands;
 import frc.robot.subsystems.elevator.ElevatorSubsystem;
 import frc.robot.subsystems.wrist.WristSubsystem;
-import yams.mechanisms.positional.Elevator;
-import yams.mechanisms.positional.Arm;
-
 import java.util.HashMap;
 import java.util.Map;
-
 import org.littletonrobotics.junction.networktables.LoggedDashboardChooser;
 
 /**
@@ -55,26 +48,24 @@ public class RobotContainer {
   private final ElevatorSubsystem elevator;
   private final WristSubsystem wrist;
 
-
   // Controller
   private final CommandXboxController controller = new CommandXboxController(0);
   private final GenericHID apacController = new GenericHID(1);
 
   // Dashboard inputs
-    private final LoggedDashboardChooser<Command> autoChooser;
-    private final Map<Command, Pose2d> autoStartingPosesBlue = new HashMap<>();
-    private final Map<Command, Pose2d> autoStartingPosesRed = new HashMap<>();
-    private final LoggedDashboardChooser<StartPose> startPoseChooser;
-    private final Map<StartPose, Pose2d> manualStartingPosesBlue = new HashMap<>();
-    private final Map<StartPose, Pose2d> manualStartingPosesRed = new HashMap<>();
+  private final LoggedDashboardChooser<Command> autoChooser;
+  private final Map<Command, Pose2d> autoStartingPosesBlue = new HashMap<>();
+  private final Map<Command, Pose2d> autoStartingPosesRed = new HashMap<>();
+  private final LoggedDashboardChooser<StartPose> startPoseChooser;
+  private final Map<StartPose, Pose2d> manualStartingPosesBlue = new HashMap<>();
+  private final Map<StartPose, Pose2d> manualStartingPosesRed = new HashMap<>();
 
-      /** Manual starting pose options. */
-    public enum StartPose {
-        NONE,
-        LEFT,
-        RIGHT
-    }
-
+  /** Manual starting pose options. */
+  public enum StartPose {
+    NONE,
+    LEFT,
+    RIGHT
+  }
 
   /** The container for the robot. Contains subsystems, OI devices, and commands. */
   public RobotContainer() {
@@ -90,10 +81,10 @@ public class RobotContainer {
                 new ModuleIOTalonFX(TunerConstants.BackRight));
 
         elevator = new ElevatorSubsystem();
-        wrist    = new WristSubsystem();
+        wrist = new WristSubsystem();
         break;
 
-        case SIM:
+      case SIM:
         // Sim robot, instantiate physics sim IO implementations
         drive =
             new Drive(
@@ -102,9 +93,9 @@ public class RobotContainer {
                 new ModuleIOSim(TunerConstants.FrontRight),
                 new ModuleIOSim(TunerConstants.BackLeft),
                 new ModuleIOSim(TunerConstants.BackRight));
-        
-        elevator = new ElevatorSubsystem(); 
-        wrist    = new WristSubsystem();
+
+        elevator = new ElevatorSubsystem();
+        wrist = new WristSubsystem();
         break;
 
       default:
@@ -119,7 +110,6 @@ public class RobotContainer {
         elevator = null;
         wrist = null;
         break;
-        
     }
 
     // Set up auto routines
@@ -193,20 +183,22 @@ public class RobotContainer {
                             new Pose2d(drive.getPose().getTranslation(), new Rotation2d())),
                     drive)
                 .ignoringDisable(true));
-    
-    
-    if (elevator != null && wrist != null){
-        //Button box
-        new JoystickButton(apacController, 1).onTrue(ElevatorCommands.Down(elevator));
-        new JoystickButton(apacController, 2).onTrue(ElevatorCommands.L2Score(elevator));
-        new JoystickButton(apacController, 3).onTrue(ElevatorCommands.L4Score(elevator));
-        new JoystickButton(apacController, 4).onTrue(ElevatorCommands.Zero(elevator));
 
-        new JoystickButton(apacController, 5).onTrue(WristCommands.Stowed(wrist));
-        new JoystickButton(apacController, 6).onTrue(WristCommands.AlgaeIntake(wrist));
-        new JoystickButton(apacController, 7).onTrue(WristCommands.TestWrist(wrist));
-        new JoystickButton(apacController, 8).onTrue(wrist.sysId());
-    }
+    // Test: align to the nearest alliance-aware reef face (default L2) while Y is held
+    controller.y().whileTrue(DriveCommands.alignToNearestBlueReefFace(drive));
+
+    // if (elevator != null && wrist != null) {
+    //   // Button box
+    //   new JoystickButton(apacController, 1).onTrue(ElevatorCommands.Down(elevator));
+    //   new JoystickButton(apacController, 2).onTrue(ElevatorCommands.L2Score(elevator));
+    //   new JoystickButton(apacController, 3).onTrue(ElevatorCommands.L4Score(elevator));
+    //   new JoystickButton(apacController, 4).onTrue(ElevatorCommands.Zero(elevator));
+
+    //   new JoystickButton(apacController, 5).onTrue(WristCommands.Stowed(wrist));
+    //   new JoystickButton(apacController, 6).onTrue(WristCommands.AlgaeIntake(wrist));
+    //   new JoystickButton(apacController, 7).onTrue(WristCommands.TestWrist(wrist));
+    //   new JoystickButton(apacController, 8).onTrue(wrist.sysId());
+    // }
   }
 
   /**
@@ -253,5 +245,4 @@ public class RobotContainer {
       drive.setPose(pose);
     }
   }
-
 }

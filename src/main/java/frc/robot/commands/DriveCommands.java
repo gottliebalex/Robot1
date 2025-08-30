@@ -13,6 +13,7 @@
 
 package frc.robot.commands;
 
+import com.therekrab.autopilot.APTarget;
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.controller.ProfiledPIDController;
 import edu.wpi.first.math.filter.SlewRateLimiter;
@@ -28,11 +29,15 @@ import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
+import edu.wpi.first.wpilibj2.command.DeferredCommand;
+import frc.robot.FieldConstants;
+import frc.robot.FieldConstants.Reef.Branch;
 import frc.robot.subsystems.drive.Drive;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
 
@@ -292,5 +297,59 @@ public class DriveCommands {
     double[] positions = new double[4];
     Rotation2d lastAngle = new Rotation2d();
     double gyroDelta = 0.0;
+  }
+  /**
+   * Aligns the robot to a specified reef face center and orientation (alliance-aware).
+   *
+   * <p>Uses the BLUE-reference pose from {@link FieldConstants.Reef#blueFacePose(Branch)} and flips
+   * it for RED based on field length, so it works on either side. The entry angle is set to the
+   * face normal to approach along the face axis.
+   */
+  public static Command alignToBlueReefFace(Drive drive, Branch branch) {
+    Pose2d blueFace = FieldConstants.Reef.blueFacePose(branch);
+    // Face toward the reef (inward: normal + 180°) in BLUE frame, then flip for RED
+    Pose2d blueInward =
+        new Pose2d(blueFace.getTranslation(), blueFace.getRotation().plus(new Rotation2d(Math.PI)));
+    Pose2d allianceTarget = allianceAwarePose(blueInward);
+    APTarget target = new APTarget(allianceTarget).withEntryAngle(allianceTarget.getRotation());
+    return drive.align(target);
+  }
+
+  /** Aligns to the nearest reef face (alliance-aware) based on the robot's current pose. */
+  public static Command alignToNearestBlueReefFace(Drive drive) {
+    // Defer branch selection until the command is scheduled so it's not frozen at init time
+    return new DeferredCommand(
+        () -> {
+          Branch nearest = FieldConstants.Reef.nearestBranch(drive.getPose());
+          return alignToBlueReefFace(drive, nearest);
+        },
+        Set.of(drive));
+  }
+
+  public static Command alignToNearestAllianceReefFace(Drive drive, int level) {
+    // Defer branch selection until scheduled to reflect current pose
+    return new DeferredCommand(
+        () -> {
+          Branch nearest = FieldConstants.Reef.nearestBranch(drive.getPose());
+          return alignToAllianceReefFace(drive, nearest, level);
+        },
+        Set.of(drive));
+  }
+
+  private static Command alignToAllianceReefFace(Drive drive, Branch nearest, int level) {
+    // TODO Auto-generated method stub
+    throw new UnsupportedOperationException("Unimplemented method 'alignToAllianceReefFace'");
+  }
+
+  // --- Helpers ---
+  private static Pose2d allianceAwarePose(Pose2d bluePose) {
+    boolean isRed =
+        DriverStation.getAlliance().isPresent()
+            && DriverStation.getAlliance().get() == Alliance.Red;
+    if (!isRed) return bluePose;
+    // Flip across field X length; keep Y; rotate 180°
+    double flippedX = FieldConstants.FIELD_LENGTH - bluePose.getX();
+    return new Pose2d(
+        flippedX, bluePose.getY(), bluePose.getRotation().plus(new Rotation2d(Math.PI)));
   }
 }

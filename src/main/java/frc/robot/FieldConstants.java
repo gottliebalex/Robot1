@@ -1,6 +1,7 @@
 package frc.robot;
 
 import static edu.wpi.first.math.util.Units.*;
+
 import edu.wpi.first.apriltag.AprilTagFieldLayout;
 import edu.wpi.first.apriltag.AprilTagFields;
 import edu.wpi.first.math.geometry.*;
@@ -9,7 +10,6 @@ import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import java.util.EnumMap;
 import java.util.Map;
 
-
 public class FieldConstants {
   public static final AprilTagFieldLayout FIELD_LAYOUT;
 
@@ -17,15 +17,22 @@ public class FieldConstants {
     FIELD_LAYOUT = AprilTagFieldLayout.loadField(AprilTagFields.k2025ReefscapeWelded);
     FIELD_LAYOUT.setOrigin(AprilTagFieldLayout.OriginPosition.kBlueAllianceWallRightSide);
   }
-  
+
   public static final double FIELD_HEIGHT = 8.0518;
   public static final double FIELD_LENGTH = 17.548249;
 
-public static final class Reef {
+  public static final class Reef {
     /** Label the 6 reef faces clockwise starting at +X (adjust order to your liking). */
-    public enum Branch { A, B, C, D, E, F }
+    public enum Branch {
+      A,
+      B,
+      C,
+      D,
+      E,
+      F
+    }
 
-    public static final Translation2d CENTER_BLUE = new Translation2d(4.4893,4.0259);
+    public static final Translation2d CENTER_BLUE = new Translation2d(4.4893, 4.0259);
 
     /** Distance from reef center to the face plane center (BLUE ref). */
     public static final double FACE_RADIUS = 0.83175;
@@ -35,82 +42,101 @@ public static final class Reef {
     /** Center point of each face (BLUE ref). */
     private static final Map<Branch, Translation2d> FACE_CENTERS_BLUE = new EnumMap<>(Branch.class);
 
-    /** Standoff per level, negative moves robot *toward* the reef along the face normal.*/
+    /** Standoff per level, negative moves robot *toward* the reef along the face normal. */
     public static final double STANDOFF_L1 = 0.35;
+
     public static final double STANDOFF_L2 = 0.45;
     public static final double STANDOFF_L3 = 0.55;
     public static final double STANDOFF_L4 = 0.65;
 
     static {
-        // Define a hexagon around +X and go clockwise every 60°
-        Rotation2d[] normals = {
-            Rotation2d.fromDegrees(  0), // A
-            Rotation2d.fromDegrees(-60), // B
-            Rotation2d.fromDegrees(-120),// C
-            Rotation2d.fromDegrees( 180),// D
-            Rotation2d.fromDegrees( 120),// E
-            Rotation2d.fromDegrees(  60) // F
-        };
-        Branch[] order = { Branch.A, Branch.B, Branch.C, Branch.D, Branch.E, Branch.F };
-        for (int i = 0; i < order.length; i++) {
-            FACE_NORMALS_BLUE.put(order[i], normals[i]);
-            FACE_CENTERS_BLUE.put(
-                order[i],
-                CENTER_BLUE.plus(
-                    new Translation2d(FACE_RADIUS, 0.0).rotateBy(normals[i])));
+      // Define a hexagon around +X and go clockwise every 60°
+      Rotation2d[] normals = {
+        Rotation2d.fromDegrees(0), // A
+        Rotation2d.fromDegrees(-60), // B
+        Rotation2d.fromDegrees(-120), // C
+        Rotation2d.fromDegrees(180), // D
+        Rotation2d.fromDegrees(120), // E
+        Rotation2d.fromDegrees(60) // F
+      };
+      Branch[] order = {Branch.A, Branch.B, Branch.C, Branch.D, Branch.E, Branch.F};
+      for (int i = 0; i < order.length; i++) {
+        FACE_NORMALS_BLUE.put(order[i], normals[i]);
+        FACE_CENTERS_BLUE.put(
+            order[i], CENTER_BLUE.plus(new Translation2d(FACE_RADIUS, 0.0).rotateBy(normals[i])));
       }
     }
 
     /** Returns the BLUE-reference face-center pose (position + facing) for a branch. */
     public static Pose2d blueFacePose(Branch branch) {
-        return new Pose2d(FACE_CENTERS_BLUE.get(branch), FACE_NORMALS_BLUE.get(branch));
+      return new Pose2d(FACE_CENTERS_BLUE.get(branch), FACE_NORMALS_BLUE.get(branch));
     }
 
     public static Pose2d scoringPose(Branch branch, int level) {
-        Pose2d blue = blueFacePose(branch);
-        double standoff =
-            switch (level) { case 1 -> STANDOFF_L1; case 2 -> STANDOFF_L2; case 3 -> STANDOFF_L3; default -> STANDOFF_L4; };
-        // Back the robot off the face by standoff (negative along +normal)
-        Translation2d offset = new Translation2d(-standoff, 0).rotateBy(blue.getRotation());
-        Pose2d blueWithOffset = new Pose2d(blue.getTranslation().plus(offset), blue.getRotation());
-  
-        // Flip for RED if needed
-        Alliance alliance = DriverStation.getAlliance().orElse(Alliance.Blue);
-        return alliance == Alliance.Red ? allianceFlip(blueWithOffset) : blueWithOffset;
-        // If you have AllianceFlipUtil.apply(blueWithOffset), use that instead of allianceFlip(...)
-      }
+      Pose2d blue = blueFacePose(branch);
+      double standoff =
+          switch (level) {
+            case 1 -> STANDOFF_L1;
+            case 2 -> STANDOFF_L2;
+            case 3 -> STANDOFF_L3;
+            default -> STANDOFF_L4;
+          };
+      // Place target in front of the face (outside the reef) along the face normal
+      Translation2d offset = new Translation2d(standoff, 0).rotateBy(blue.getRotation());
+      // Desired scoring orientation faces the reef (inward: normal + 180°)
+      Pose2d blueWithOffsetInward =
+          new Pose2d(
+              blue.getTranslation().plus(offset),
+              blue.getRotation().plus(Rotation2d.fromDegrees(180)));
 
-    /** Finds the nearest reef branch (by face center) to a given field pose for convenience targeting. */
+      // Flip for RED if needed
+      Alliance alliance = DriverStation.getAlliance().orElse(Alliance.Blue);
+      return alliance == Alliance.Red ? allianceFlip(blueWithOffsetInward) : blueWithOffsetInward;
+      // If you have AllianceFlipUtil.apply(blueWithOffsetInward), use that instead of
+      // allianceFlip(...)
+    }
+
+    /**
+     * Finds the nearest reef branch (by face center) to a given field pose for convenience
+     * targeting.
+     */
     public static Branch nearestBranch(Pose2d robotPose) {
-        Branch best = Branch.A;
-        double bestDist = Double.POSITIVE_INFINITY;
-        for (var e : FACE_CENTERS_BLUE.entrySet()) {
-            Translation2d fc = e.getValue();
-            double d = robotPose.getTranslation().getDistance(
-                DriverStation.getAlliance().orElse(Alliance.Blue) == Alliance.Red
-                    ? allianceFlip(new Pose2d(fc, new Rotation2d())).getTranslation()
-                    : fc);
-            if (d < bestDist) { bestDist = d; best = e.getKey(); }
+      Branch best = Branch.A;
+      double bestDist = Double.POSITIVE_INFINITY;
+      for (var e : FACE_CENTERS_BLUE.entrySet()) {
+        Translation2d fc = e.getValue();
+        double d =
+            robotPose
+                .getTranslation()
+                .getDistance(
+                    DriverStation.getAlliance().orElse(Alliance.Blue) == Alliance.Red
+                        ? allianceFlip(new Pose2d(fc, new Rotation2d())).getTranslation()
+                        : fc);
+        if (d < bestDist) {
+          bestDist = d;
+          best = e.getKey();
         }
-        return best;
-    }
-  
-    private static Pose2d allianceFlip(Pose2d bluePose) {
-        // Flip about the field centerline along X. Replace kFieldLength if you already define it elsewhere.
-        double x = (FIELD_LENGTH) - bluePose.getX();
-        double y = bluePose.getY();
-        Rotation2d rot = bluePose.getRotation().plus(Rotation2d.fromDegrees(180));
-        return new Pose2d(x, y, rot);
       }
-    // Convenience Units helper (so kFieldLength can be stored in meters or feet—your call)
-    private static double meters(double value) { return value; }
-    private static double metersToFeet(double meters) { return meters; } // keep in meters if you already are
+      return best;
     }
 
+    private static Pose2d allianceFlip(Pose2d bluePose) {
+      // Flip about the field centerline along X. Replace kFieldLength if you already define it
+      // elsewhere.
+      double x = (FIELD_LENGTH) - bluePose.getX();
+      double y = bluePose.getY();
+      Rotation2d rot = bluePose.getRotation().plus(Rotation2d.fromDegrees(180));
+      return new Pose2d(x, y, rot);
+    }
+    // Convenience Units helper (so kFieldLength can be stored in meters or feet—your call)
+    private static double meters(double value) {
+      return value;
+    }
 
-
-
-
+    private static double metersToFeet(double meters) {
+      return meters;
+    } // keep in meters if you already are
+  }
 
   // April tag IDs
   public static final int RED_LEFT_CORAL_STATION = 1;

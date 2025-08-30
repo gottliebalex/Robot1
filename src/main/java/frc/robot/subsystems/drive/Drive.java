@@ -23,12 +23,10 @@ import com.pathplanner.lib.config.RobotConfig;
 import com.pathplanner.lib.controllers.PPHolonomicDriveController;
 import com.pathplanner.lib.pathfinding.Pathfinding;
 import com.pathplanner.lib.util.PathPlannerLogging;
-
 import com.therekrab.autopilot.APConstraints;
 import com.therekrab.autopilot.APProfile;
 import com.therekrab.autopilot.APTarget;
 import com.therekrab.autopilot.Autopilot;
-
 import edu.wpi.first.hal.FRCNetComm.tInstances;
 import edu.wpi.first.hal.FRCNetComm.tResourceType;
 import edu.wpi.first.hal.HAL;
@@ -37,7 +35,6 @@ import edu.wpi.first.math.controller.ProfiledPIDController;
 import edu.wpi.first.math.estimator.SwerveDrivePoseEstimator;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.geometry.Transform2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.geometry.Twist2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
@@ -53,16 +50,12 @@ import edu.wpi.first.wpilibj.Alert.AlertType;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine;
 import frc.robot.Constants;
 import frc.robot.Constants.Mode;
 import frc.robot.generated.TunerConstants;
 import frc.robot.util.LocalADStarAK;
-import frc.robot.FieldConstants;
-
-import java.lang.annotation.Target;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import org.littletonrobotics.junction.AutoLogOutput;
@@ -379,64 +372,57 @@ public class Drive extends SubsystemBase {
     };
   }
 
-  public ChassisSpeeds getRobotRelativeSpeeds(){
+  public ChassisSpeeds getRobotRelativeSpeeds() {
     return kinematics.toChassisSpeeds(getModuleStates());
   }
 
-// config
-private static final APConstraints kAPConstraints = new APConstraints()
-    .withAcceleration(5.0)
-    .withJerk(3.0);
+  // config
+  private static final APConstraints kAPConstraints =
+      new APConstraints().withAcceleration(5.0).withJerk(3.0);
 
-private static final APProfile kAPProfile = new APProfile(kAPConstraints)
-    .withErrorXY(Meters.of(0.04))
-    .withErrorTheta(Degrees.of(1.0))
-    .withBeelineRadius(Meters.of(0.15));
+  private static final APProfile kAPProfile =
+      new APProfile(kAPConstraints)
+          .withErrorXY(Meters.of(0.04))
+          .withErrorTheta(Degrees.of(1.0))
+          .withBeelineRadius(Meters.of(0.15));
 
-// instance used by align(...)
-public static final Autopilot kAutopilot = new Autopilot(kAPProfile);
+  // instance used by align(...)
+  public static final Autopilot kAutopilot = new Autopilot(kAPProfile);
 
-public Command align(APTarget target) {
-  // Local heading controller (same numbers you use in DriveCommands)
-  ProfiledPIDController angleController =
-      new ProfiledPIDController(
-          5.0, 0.0, 0.4,
-          new TrapezoidProfile.Constraints(8.0, 20.0));
-  angleController.enableContinuousInput(-Math.PI, Math.PI);
+  public Command align(APTarget target) {
+    // Local heading controller (same numbers you use in DriveCommands)
+    ProfiledPIDController angleController =
+        new ProfiledPIDController(5.0, 0.0, 0.4, new TrapezoidProfile.Constraints(8.0, 20.0));
+    angleController.enableContinuousInput(-Math.PI, Math.PI);
 
-  return this.run(() -> {
-    // Current state
-    Pose2d pose = this.getPose();
-    ChassisSpeeds robotRelativeSpeeds = this.getRobotRelativeSpeeds();
+    return this.run(
+            () -> {
+              // Current state
+              Pose2d pose = this.getPose();
+              ChassisSpeeds robotRelativeSpeeds = this.getRobotRelativeSpeeds();
 
-    // Autopilot -> field-relative velocities + heading reference
-    Transform2d out = kAutopilot.calculate(pose, robotRelativeSpeeds, target);
+              // Autopilot -> field-relative velocities + heading reference
+              Autopilot.APResult out = kAutopilot.calculate(pose, robotRelativeSpeeds, target);
 
-    double vxField = out.getX();
-    double vyField = out.getY();
-    Rotation2d headingRef = out.getRotation();
+              double vxField = out.vx().in(MetersPerSecond);
+              double vyField = out.vy().in(MetersPerSecond);
+              Rotation2d headingRef = out.targetAngle();
 
-    // Close heading locally to get omega (rad/s)
-    double omega = angleController.calculate(
-        this.getRotation().getRadians(), headingRef.getRadians());
+              // Close heading locally to get omega (rad/s)
+              double omega =
+                  angleController.calculate(
+                      this.getRotation().getRadians(), headingRef.getRadians());
 
-    // Alliance flip (same logic as your joystick code)
-    boolean flip = DriverStation.getAlliance().orElse(Alliance.Blue) == Alliance.Red;
-    Rotation2d robotAngle = flip
-        ? this.getRotation().plus(Rotation2d.fromRadians(Math.PI))
-        : this.getRotation();
+              // Use actual robot heading for field->robot conversion (no alliance flip)
+              Rotation2d robotAngle = this.getRotation();
 
-    // Field -> robot and send to modules
-    ChassisSpeeds speeds = ChassisSpeeds.fromFieldRelativeSpeeds(
-        vxField, vyField, omega, robotAngle);
+              // Field -> robot and send to modules
+              ChassisSpeeds speeds =
+                  ChassisSpeeds.fromFieldRelativeSpeeds(vxField, vyField, omega, robotAngle);
 
-    this.runVelocity(speeds);
-  })
-  .until(() -> kAutopilot.atTarget(this.getPose(), target))
-  .finallyDo(this::stop);
+              this.runVelocity(speeds);
+            })
+        .until(() -> kAutopilot.atTarget(this.getPose(), target))
+        .finallyDo(this::stop);
   }
-
-
 }
-
-

@@ -4,12 +4,12 @@ import edu.wpi.first.wpilibj2.command.Command;
 import frc.robot.subsystems.elevator.ElevatorSubsystem;
 
 public class ElevatorCommands {
-    private ElevatorCommands() {}
+  private ElevatorCommands() {}
 
   public static Command Zero(ElevatorSubsystem elevator) {
     return elevator.setHeight(ElevatorSubsystem.ElevatorPosition.Zero.distance());
   }
-      
+
   public static Command Down(ElevatorSubsystem elevator) {
     return elevator.setHeight(ElevatorSubsystem.ElevatorPosition.Down.distance());
   }
