@@ -185,7 +185,7 @@ public class RobotContainer {
                 .ignoringDisable(true));
 
     // Test: align to the nearest alliance-aware reef face (default L2) while Y is held
-    controller.y().whileTrue(DriveCommands.alignToNearestBlueReefFace(drive));
+    controller.y().whileTrue(DriveCommands.alignToNearestAllianceReefFace(drive, 2));
 
     // if (elevator != null && wrist != null) {
     //   // Button box

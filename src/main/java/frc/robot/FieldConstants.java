@@ -121,11 +121,11 @@ public class FieldConstants {
     }
 
     private static Pose2d allianceFlip(Pose2d bluePose) {
-      // Flip about the field centerline along X. Replace kFieldLength if you already define it
-      // elsewhere.
+      // Mirror across the field X-length centerline (x -> L - x) and reflect heading.
+      // For a reflection across the vertical centerline, the heading transforms as (pi - theta).
       double x = (FIELD_LENGTH) - bluePose.getX();
       double y = bluePose.getY();
-      Rotation2d rot = bluePose.getRotation().plus(Rotation2d.fromDegrees(180));
+      Rotation2d rot = Rotation2d.fromRadians(Math.PI).minus(bluePose.getRotation());
       return new Pose2d(x, y, rot);
     }
     // Convenience Units helper (so kFieldLength can be stored in meters or feet—your call)

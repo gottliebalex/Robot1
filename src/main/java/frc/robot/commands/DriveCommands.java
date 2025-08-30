@@ -1,4 +1,4 @@
-// Copyright 2021-2025 FRC 6328
+﻿// Copyright 2021-2025 FRC 6328
 // http://github.com/Mechanical-Advantage
 //
 // This program is free software; you can redistribute it and/or
@@ -337,8 +337,9 @@ public class DriveCommands {
   }
 
   private static Command alignToAllianceReefFace(Drive drive, Branch nearest, int level) {
-    // TODO Auto-generated method stub
-    throw new UnsupportedOperationException("Unimplemented method 'alignToAllianceReefFace'");
+    Pose2d target = FieldConstants.Reef.scoringPose(nearest, level);
+    APTarget apTarget = new APTarget(target).withEntryAngle(target.getRotation());
+    return drive.align(apTarget);
   }
 
   // --- Helpers ---
@@ -347,9 +348,9 @@ public class DriveCommands {
         DriverStation.getAlliance().isPresent()
             && DriverStation.getAlliance().get() == Alliance.Red;
     if (!isRed) return bluePose;
-    // Flip across field X length; keep Y; rotate 180°
+    // Mirror across field X-length centerline and reflect heading (theta' = pi - theta)
     double flippedX = FieldConstants.FIELD_LENGTH - bluePose.getX();
     return new Pose2d(
-        flippedX, bluePose.getY(), bluePose.getRotation().plus(new Rotation2d(Math.PI)));
+        flippedX, bluePose.getY(), new Rotation2d(Math.PI).minus(bluePose.getRotation()));
   }
 }
