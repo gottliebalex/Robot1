@@ -422,6 +422,7 @@ public class Drive extends SubsystemBase {
 
               this.runVelocity(speeds);
             })
+        .beforeStarting(() -> angleController.reset(this.getRotation().getRadians()))
         .until(() -> kAutopilot.atTarget(this.getPose(), target))
         .finallyDo(this::stop);
   }
