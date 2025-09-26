@@ -7,7 +7,6 @@ import static edu.wpi.first.units.Units.DegreesPerSecondPerSecond;
 import static edu.wpi.first.units.Units.Meters;
 import static edu.wpi.first.units.Units.Pounds;
 import static edu.wpi.first.units.Units.Second;
-import static edu.wpi.first.units.Units.Seconds;
 import static edu.wpi.first.units.Units.Volts;
 import static yams.mechanisms.SmartMechanism.gearbox;
 import static yams.mechanisms.SmartMechanism.gearing;
@@ -54,8 +53,8 @@ public class WristSubsystem extends SubsystemBase {
           .withStatorCurrentLimit(Amps.of(40))
           //      .withVoltageCompensation(Volts.of(12))
           .withMotorInverted(false)
-          .withClosedLoopRampRate(Seconds.of(0.25))
-          .withOpenLoopRampRate(Seconds.of(0.25))
+          // .withClosedLoopRampRate(Seconds.of(0.25))
+          // .withOpenLoopRampRate(Seconds.of(0.25))
           .withFeedforward(new ArmFeedforward(.2, .2, .4, .003))
           .withControlMode(ControlMode.CLOSED_LOOP)
           .withStartingPosition(Degrees.of(0))
@@ -124,7 +123,20 @@ public class WristSubsystem extends SubsystemBase {
     return arm.sysId(Volts.of(3), Volts.of(3).per(Second), Second.of(30));
   }
 
+  public Angle getAngle() {
+    return arm.getAngle();
+  }
+
   public Command setAngle(Angle angle) {
     return arm.setAngle(angle);
+  }
+
+  public boolean atAngle(Angle target) {
+    return Math.abs(getAngle().in(Degrees) - target.in(Degrees))
+        <= SubsystemConstants.WRIST_TOLERANCE.in(Degrees);
+  }
+
+  public Command waitUntilAtAngle(Angle target) {
+    return Commands.waitUntil(() -> atAngle(target));
   }
 }

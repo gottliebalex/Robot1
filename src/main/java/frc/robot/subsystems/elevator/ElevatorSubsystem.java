@@ -21,6 +21,7 @@ import edu.wpi.first.math.geometry.Translation3d;
 import edu.wpi.first.math.system.plant.DCMotor;
 import edu.wpi.first.units.measure.Distance;
 import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.subsystems.SubsystemConstants;
 import yams.mechanisms.config.ElevatorConfig;
@@ -51,7 +52,7 @@ public class ElevatorSubsystem extends SubsystemBase {
           .withClosedLoopController(
               1.5, 0, 0, MetersPerSecond.of(2), MetersPerSecondPerSecond.of(5))
           .withSimClosedLoopController(
-              0, 0, 0, MetersPerSecond.of(2), MetersPerSecondPerSecond.of(2))
+              5, 0, 0, MetersPerSecond.of(2), MetersPerSecondPerSecond.of(2))
           .withSoftLimit(Meters.of(0.125), Meters.of(2.5))
           .withGearing(gearing(gearbox(6.8444)))
           //      .withExternalEncoder(armMotor.getAbsoluteEncoder())
@@ -77,7 +78,7 @@ public class ElevatorSubsystem extends SubsystemBase {
       new MechanismPositionConfig()
           .withMaxRobotHeight(Meters.of(1.5))
           .withMaxRobotLength(Meters.of(0.75))
-          .withRelativePosition(new Translation3d(Meters.of(-0.25), Meters.of(0), Meters.of(0.5)));
+          .withRelativePosition(new Translation3d(Meters.of(-0.25), Meters.of(0), Meters.of(0.2)));
   private ElevatorConfig m_config =
       new ElevatorConfig(motor)
           .withStartingHeight(Meters.of(0))
@@ -146,6 +147,15 @@ public class ElevatorSubsystem extends SubsystemBase {
 
   public Distance getHeight() {
     return m_elevator.getHeight();
+  }
+
+  public boolean atHeight(Distance target) {
+    return Math.abs(getHeight().in(Meters) - target.in(Meters))
+        <= SubsystemConstants.ELEVATOR_TOLERANCE.in(Meters);
+  }
+
+  public Command waitUntilAtHeight(Distance target) {
+    return Commands.run(() -> {}, m_elevator).until(() -> atHeight(target)).withTimeout(3.0);
   }
 
   public Command sysId() {

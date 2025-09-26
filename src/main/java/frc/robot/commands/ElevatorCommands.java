@@ -3,6 +3,8 @@ package frc.robot.commands;
 import edu.wpi.first.wpilibj2.command.Command;
 import frc.robot.subsystems.elevator.ElevatorSubsystem;
 
+//These are used for easy tuning
+
 public class ElevatorCommands {
   private ElevatorCommands() {}
 

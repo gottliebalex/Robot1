@@ -14,15 +14,22 @@
 package frc.robot;
 
 import com.pathplanner.lib.auto.AutoBuilder;
+import com.pathplanner.lib.path.PathPlannerPath;
+import com.pathplanner.lib.util.FlippingUtil;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.wpilibj.GenericHID;
 import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.CommandScheduler;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
+import edu.wpi.first.wpilibj2.command.button.JoystickButton;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine;
 import frc.robot.commands.DriveCommands;
+import frc.robot.commands.ElevatorCommands;
+import frc.robot.commands.ScoreCommands;
+import frc.robot.commands.WristCommands;
 import frc.robot.generated.TunerConstants;
 import frc.robot.subsystems.drive.Drive;
 import frc.robot.subsystems.drive.GyroIO;
@@ -115,6 +122,35 @@ public class RobotContainer {
     // Set up auto routines
     autoChooser = new LoggedDashboardChooser<>("Auto Choices", AutoBuilder.buildAutoChooser());
 
+    // Add Choreo single-path auto: Start-J
+    Command startJChoreo = Autos.choreoStartJ(drive);
+    autoChooser.addOption("Start-J (Choreo)", startJChoreo);
+    // Populate starting poses for Start-J if the trajectory is available
+    try {
+      PathPlannerPath p = PathPlannerPath.fromChoreoTrajectory("Start-J");
+      p.getStartingHolonomicPose()
+          .ifPresent(
+              bluePose -> {
+                autoStartingPosesBlue.put(startJChoreo, bluePose);
+                autoStartingPosesRed.put(startJChoreo, FlippingUtil.flipFieldPose(bluePose));
+              });
+    } catch (Exception ignored) {
+    }
+
+    // Add combined auto: Start-J then J-Station after 1.5s
+    Command startJThenJStation = Autos.choreoStartJThenJStation(drive);
+    autoChooser.addOption("Start-J -> J-Station (Choreo)", startJThenJStation);
+    try {
+      PathPlannerPath p = PathPlannerPath.fromChoreoTrajectory("Start-J");
+      p.getStartingHolonomicPose()
+          .ifPresent(
+              bluePose -> {
+                autoStartingPosesBlue.put(startJThenJStation, bluePose);
+                autoStartingPosesRed.put(startJThenJStation, FlippingUtil.flipFieldPose(bluePose));
+              });
+    } catch (Exception ignored) {
+    }
+
     // Manual starting pose chooser
     startPoseChooser = new LoggedDashboardChooser<>("Start Pose");
     startPoseChooser.addDefaultOption("None", StartPose.NONE);
@@ -187,18 +223,32 @@ public class RobotContainer {
     // Test: align to the nearest alliance-aware reef face (default L2) while Y is held
     controller.y().whileTrue(DriveCommands.alignToNearestAllianceReefFace(drive, 2));
 
-    // if (elevator != null && wrist != null) {
-    //   // Button box
-    //   new JoystickButton(apacController, 1).onTrue(ElevatorCommands.Down(elevator));
-    //   new JoystickButton(apacController, 2).onTrue(ElevatorCommands.L2Score(elevator));
-    //   new JoystickButton(apacController, 3).onTrue(ElevatorCommands.L4Score(elevator));
-    //   new JoystickButton(apacController, 4).onTrue(ElevatorCommands.Zero(elevator));
-
-    //   new JoystickButton(apacController, 5).onTrue(WristCommands.Stowed(wrist));
-    //   new JoystickButton(apacController, 6).onTrue(WristCommands.AlgaeIntake(wrist));
-    //   new JoystickButton(apacController, 7).onTrue(WristCommands.TestWrist(wrist));
-    //   new JoystickButton(apacController, 8).onTrue(wrist.sysId());
-    // }
+    if (elevator != null && wrist != null) {
+      //   // Button box
+      // Scoring commands trigger once on press and finish when done
+      Command l2 = ScoreCommands.scoreL2(drive, elevator, wrist);
+      Command l3 = ScoreCommands.scoreL3(drive, elevator, wrist);
+      Command l4 = ScoreCommands.scoreL4(drive, elevator, wrist);
+      new JoystickButton(apacController, 2).onTrue(l2);
+      new JoystickButton(apacController, 3).onTrue(l3);
+      new JoystickButton(apacController, 4).onTrue(l4);
+      // Dedicated cancel button: cancels any active scoring, then safely reset
+      new JoystickButton(apacController, 1)
+          .onTrue(
+              Commands.runOnce(
+                      () -> {
+                        CommandScheduler.getInstance().cancel(l2);
+                        CommandScheduler.getInstance().cancel(l3);
+                        CommandScheduler.getInstance().cancel(l4);
+                      })
+                  .andThen(
+                      Commands.parallel(
+                          WristCommands.Stowed(wrist), ElevatorCommands.Down(elevator))));
+      // Other utilities
+      new JoystickButton(apacController, 5).onTrue(WristCommands.Stowed(wrist));
+      new JoystickButton(apacController, 6).onTrue(WristCommands.AlgaeIntake(wrist));
+      new JoystickButton(apacController, 7).onTrue(WristCommands.TestWrist(wrist));
+    }
   }
 
   /**
