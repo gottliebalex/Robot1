@@ -125,10 +125,6 @@ public class ElevatorSubsystem extends SubsystemBase {
 
   }
 
-  public ElevatorSubsystem(boolean b) {
-    // TODO Auto-generated constructor stub
-  }
-
   public void periodic() {
     m_elevator.updateTelemetry();
 
@@ -147,15 +143,6 @@ public class ElevatorSubsystem extends SubsystemBase {
 
   public Distance getHeight() {
     return m_elevator.getHeight();
-  }
-
-  public boolean atHeight(Distance target) {
-    return Math.abs(getHeight().in(Meters) - target.in(Meters))
-        <= SubsystemConstants.ELEVATOR_TOLERANCE.in(Meters);
-  }
-
-  public Command waitUntilAtHeight(Distance target) {
-    return Commands.run(() -> {}, m_elevator).until(() -> atHeight(target)).withTimeout(3.0);
   }
 
   public Command sysId() {
