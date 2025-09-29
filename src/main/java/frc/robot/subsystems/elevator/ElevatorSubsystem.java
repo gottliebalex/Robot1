@@ -21,7 +21,6 @@ import edu.wpi.first.math.geometry.Translation3d;
 import edu.wpi.first.math.system.plant.DCMotor;
 import edu.wpi.first.units.measure.Distance;
 import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.subsystems.SubsystemConstants;
 import yams.mechanisms.config.ElevatorConfig;
@@ -60,6 +59,7 @@ public class ElevatorSubsystem extends SubsystemBase {
           .withTelemetry("ElevatorMotor", TelemetryVerbosity.HIGH)
           //      .withSpecificTelemetry("ElevatorMotor", motorTelemetryConfig)
           .withStatorCurrentLimit(Amps.of(60))
+          .withSupplyCurrentLimit(Amps.of(70))
           //      .withVoltageCompensation(Volts.of(12))
           .withMotorInverted(false)
           //      .withClosedLoopRampRate(Seconds.of(0.25))
@@ -82,7 +82,7 @@ public class ElevatorSubsystem extends SubsystemBase {
   private ElevatorConfig m_config =
       new ElevatorConfig(motor)
           .withStartingHeight(Meters.of(0))
-          .withHardLimits(Meters.of(.0254), Meters.of(2.5))
+          .withHardLimits(Meters.of(0), Meters.of(2.5))
           .withTelemetry("Elevator", TelemetryVerbosity.HIGH)
           .withMechanismPositionConfig(m_robotToMechanism)
           .withMass(Pounds.of(15));

@@ -31,6 +31,7 @@ import frc.robot.commands.ElevatorCommands;
 import frc.robot.commands.ScoreCommands;
 import frc.robot.commands.WristCommands;
 import frc.robot.generated.TunerConstants;
+import frc.robot.FieldConstants.Reef.PipeSide;
 import frc.robot.subsystems.drive.Drive;
 import frc.robot.subsystems.drive.GyroIO;
 import frc.robot.subsystems.drive.GyroIOPigeon2;
@@ -222,6 +223,13 @@ public class RobotContainer {
 
     // Test: align to the nearest alliance-aware reef face (default L2) while Y is held
     controller.y().whileTrue(DriveCommands.alignToNearestAllianceReefFace(drive, 2));
+    // While holding bumpers, align to nearest face L2 but choose left/right pipe.
+    controller
+        .leftBumper()
+        .whileTrue(DriveCommands.alignToNearestAllianceReefFace(drive, 2, PipeSide.LEFT));
+    controller
+        .rightBumper()
+        .whileTrue(DriveCommands.alignToNearestAllianceReefFace(drive, 2, PipeSide.RIGHT));
 
     if (elevator != null && wrist != null) {
       //   // Button box

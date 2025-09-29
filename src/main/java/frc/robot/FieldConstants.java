@@ -32,6 +32,12 @@ public class FieldConstants {
       F
     }
 
+    /** Select which pipe on a face to align to when scoring. */
+    public enum PipeSide {
+      LEFT,
+      RIGHT
+    }
+
     public static final Translation2d CENTER_BLUE = new Translation2d(4.4893, 4.0259);
 
     /** Distance from reef center to the face plane center (BLUE ref). */
@@ -94,6 +100,41 @@ public class FieldConstants {
       return alliance == Alliance.Red ? allianceFlip(blueWithOffsetInward) : blueWithOffsetInward;
       // If you have AllianceFlipUtil.apply(blueWithOffsetInward), use that instead of
       // allianceFlip(...)
+    }
+
+    /**
+     * Scoring pose offset to the selected pipe side (left/right) relative to the face center.
+     * The offset is applied in the BLUE frame and then alliance-flipped if needed.
+     */
+    public static Pose2d scoringPose(Branch branch, int level, PipeSide side) {
+      Pose2d blue = blueFacePose(branch);
+
+      // Standoff along face normal (positive is away from reef)
+      double standoff =
+          switch (level) {
+            case 1 -> STANDOFF_L1;
+            case 2 -> STANDOFF_L2;
+            case 3 -> STANDOFF_L3;
+            default -> STANDOFF_L4;
+          };
+      Translation2d normalOffset = new Translation2d(standoff, 0).rotateBy(blue.getRotation());
+
+      // Robot should face inward (toward the reef)
+      Rotation2d inward = blue.getRotation().plus(Rotation2d.fromDegrees(180));
+
+      // Lateral offset to the chosen pipe: half of the pipe center spacing, left is +90° from
+      // inward, right is -90°
+      double halfSpacingM = inchesToMeters(12.938) / 2.0;
+      double sign = (side == PipeSide.LEFT) ? +1.0 : -1.0;
+      Rotation2d leftDir = inward.plus(Rotation2d.fromDegrees(90));
+      Translation2d lateralOffset = new Translation2d(sign * halfSpacingM, 0).rotateBy(leftDir);
+
+      Pose2d blueTarget =
+          new Pose2d(blue.getTranslation().plus(normalOffset).plus(lateralOffset), inward);
+
+      // Alliance-aware flip
+      Alliance alliance = DriverStation.getAlliance().orElse(Alliance.Blue);
+      return alliance == Alliance.Red ? allianceFlip(blueTarget) : blueTarget;
     }
 
     /**

@@ -32,6 +32,7 @@ import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.DeferredCommand;
 import frc.robot.FieldConstants;
 import frc.robot.FieldConstants.Reef.Branch;
+import frc.robot.FieldConstants.Reef.PipeSide;
 import frc.robot.subsystems.drive.Drive;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
@@ -336,8 +337,25 @@ public class DriveCommands {
         Set.of(drive));
   }
 
+  /** Aligns to the nearest reef face, targeting the selected pipe side. */
+  public static Command alignToNearestAllianceReefFace(Drive drive, int level, PipeSide side) {
+    return new DeferredCommand(
+        () -> {
+          Branch nearest = FieldConstants.Reef.nearestBranch(drive.getPose());
+          return alignToAllianceReefFace(drive, nearest, level, side);
+        },
+        Set.of(drive));
+  }
+
   private static Command alignToAllianceReefFace(Drive drive, Branch nearest, int level) {
     Pose2d target = FieldConstants.Reef.scoringPose(nearest, level);
+    APTarget apTarget = new APTarget(target).withEntryAngle(target.getRotation());
+    return drive.align(apTarget);
+  }
+
+  private static Command alignToAllianceReefFace(
+      Drive drive, Branch nearest, int level, PipeSide side) {
+    Pose2d target = FieldConstants.Reef.scoringPose(nearest, level, side);
     APTarget apTarget = new APTarget(target).withEntryAngle(target.getRotation());
     return drive.align(apTarget);
   }
