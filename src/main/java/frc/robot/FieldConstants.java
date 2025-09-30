@@ -103,8 +103,8 @@ public class FieldConstants {
     }
 
     /**
-     * Scoring pose offset to the selected pipe side (left/right) relative to the face center.
-     * The offset is applied in the BLUE frame and then alliance-flipped if needed.
+     * Scoring pose offset to the selected pipe side (left/right) relative to the face center. The
+     * offset is applied in the BLUE frame and then alliance-flipped if needed.
      */
     public static Pose2d scoringPose(Branch branch, int level, PipeSide side) {
       Pose2d blue = blueFacePose(branch);
