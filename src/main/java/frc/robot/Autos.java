@@ -13,7 +13,7 @@ import org.json.simple.parser.ParseException;
 public final class Autos {
   private Autos() {}
 
-  public static Command choreoStartJ(Drive drive) {
+  public static Command StartJ(Drive drive) {
     try {
       PathPlannerPath path = PathPlannerPath.fromChoreoTrajectory("Start-J");
 
@@ -22,14 +22,14 @@ public final class Autos {
               .<Command>map(AutoBuilder::resetOdom)
               .orElse(Commands.none());
 
-      return Commands.sequence(reset, AutoBuilder.followPath(path)).withName("Start-J (Choreo)");
+      return Commands.sequence(reset, AutoBuilder.followPath(path)).withName("Start-J");
     } catch (IOException | ParseException | FileVersionException e) {
       return Commands.print("Failed to load Choreo path Start-J: " + e.getMessage());
     }
   }
 
-  /** Creates a command that runs Start-J, waits 1.5s, then runs J-Station. */
-  public static Command choreoStartJThenJStation(Drive drive) {
+  /** Start-J, waits 0.5s (simualte scoring), then runs J-Station. */
+  public static Command StartJThenJStation(Drive drive) {
     try {
       PathPlannerPath startJ = PathPlannerPath.fromChoreoTrajectory("Start-J");
       PathPlannerPath jStation = PathPlannerPath.fromChoreoTrajectory("J-Station");
@@ -43,9 +43,9 @@ public final class Autos {
       return Commands.sequence(
               reset,
               AutoBuilder.followPath(startJ),
-              Commands.waitSeconds(1.5),
+              Commands.waitSeconds(0.5),
               AutoBuilder.followPath(jStation))
-          .withName("Start-J -> J-Station (Choreo)");
+          .withName("Start-J -> J-Station");
     } catch (IOException | ParseException | FileVersionException e) {
       return Commands.print("Failed to load Choreo paths Start-J/J-Station: " + e.getMessage());
     }

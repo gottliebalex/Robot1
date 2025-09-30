@@ -22,7 +22,7 @@ public class FieldConstants {
   public static final double FIELD_LENGTH = 17.548249;
 
   public static final class Reef {
-    /** Label the 6 reef faces clockwise starting at +X (adjust order to your liking). */
+    /** Label the 6 reef faces clockwise starting at +X */
     public enum Branch {
       A,
       B,
@@ -48,7 +48,7 @@ public class FieldConstants {
     /** Center point of each face (BLUE ref). */
     private static final Map<Branch, Translation2d> FACE_CENTERS_BLUE = new EnumMap<>(Branch.class);
 
-    /** Standoff per level, negative moves robot *toward* the reef along the face normal. */
+    /** Standoff per level, negative moves robot toward the reef along the face normal. */
     public static final double STANDOFF_L1 = 0.35;
 
     public static final double STANDOFF_L2 = 0.45;
@@ -98,8 +98,6 @@ public class FieldConstants {
       // Flip for RED if needed
       Alliance alliance = DriverStation.getAlliance().orElse(Alliance.Blue);
       return alliance == Alliance.Red ? allianceFlip(blueWithOffsetInward) : blueWithOffsetInward;
-      // If you have AllianceFlipUtil.apply(blueWithOffsetInward), use that instead of
-      // allianceFlip(...)
     }
 
     /**
@@ -137,10 +135,7 @@ public class FieldConstants {
       return alliance == Alliance.Red ? allianceFlip(blueTarget) : blueTarget;
     }
 
-    /**
-     * Finds the nearest reef branch (by face center) to a given field pose for convenience
-     * targeting.
-     */
+    /** Finds the nearest reef branch (by face center) to a given field pose */
     public static Branch nearestBranch(Pose2d robotPose) {
       Branch best = Branch.A;
       double bestDist = Double.POSITIVE_INFINITY;
@@ -169,14 +164,6 @@ public class FieldConstants {
       Rotation2d rot = Rotation2d.fromRadians(Math.PI).minus(bluePose.getRotation());
       return new Pose2d(x, y, rot);
     }
-    // Convenience Units helper (so kFieldLength can be stored in meters or feet—your call)
-    private static double meters(double value) {
-      return value;
-    }
-
-    private static double metersToFeet(double meters) {
-      return meters;
-    } // keep in meters if you already are
   }
 
   // April tag IDs

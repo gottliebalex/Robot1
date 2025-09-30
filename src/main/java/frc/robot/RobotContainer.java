@@ -123,10 +123,9 @@ public class RobotContainer {
     // Set up auto routines
     autoChooser = new LoggedDashboardChooser<>("Auto Choices", AutoBuilder.buildAutoChooser());
 
-    // Add Choreo single-path auto: Start-J
-    Command startJChoreo = Autos.choreoStartJ(drive);
-    autoChooser.addOption("Start-J (Choreo)", startJChoreo);
-    // Populate starting poses for Start-J if the trajectory is available
+    // Start-J
+    Command startJChoreo = Autos.StartJ(drive);
+    autoChooser.addOption("Start-J", startJChoreo);
     try {
       PathPlannerPath p = PathPlannerPath.fromChoreoTrajectory("Start-J");
       p.getStartingHolonomicPose()
@@ -138,9 +137,9 @@ public class RobotContainer {
     } catch (Exception ignored) {
     }
 
-    // Add combined auto: Start-J then J-Station after 1.5s
-    Command startJThenJStation = Autos.choreoStartJThenJStation(drive);
-    autoChooser.addOption("Start-J -> J-Station (Choreo)", startJThenJStation);
+    // Start-J, J-station
+    Command startJThenJStation = Autos.StartJThenJStation(drive);
+    autoChooser.addOption("Start-J -> J-Station", startJThenJStation);
     try {
       PathPlannerPath p = PathPlannerPath.fromChoreoTrajectory("Start-J");
       p.getStartingHolonomicPose()
@@ -221,9 +220,9 @@ public class RobotContainer {
                     drive)
                 .ignoringDisable(true));
 
-    // Test: align to the nearest alliance-aware reef face (default L2) while Y is held
+    // align to the center of the nearest reef face
     controller.y().whileTrue(DriveCommands.alignToNearestAllianceReefFace(drive, 2));
-    // While holding bumpers, align to nearest face L2 but choose left/right pipe.
+    // align to the left/right pipe (face selection is still to to the center)
     controller
         .leftBumper()
         .whileTrue(DriveCommands.alignToNearestAllianceReefFace(drive, 2, PipeSide.LEFT));
@@ -233,14 +232,13 @@ public class RobotContainer {
 
     if (elevator != null && wrist != null) {
       //   // Button box
-      // Scoring commands trigger once on press and finish when done
       Command l2 = ScoreCommands.scoreL2(drive, elevator, wrist);
       Command l3 = ScoreCommands.scoreL3(drive, elevator, wrist);
       Command l4 = ScoreCommands.scoreL4(drive, elevator, wrist);
       new JoystickButton(apacController, 2).onTrue(l2);
       new JoystickButton(apacController, 3).onTrue(l3);
       new JoystickButton(apacController, 4).onTrue(l4);
-      // Dedicated cancel button: cancels any active scoring, then safely reset
+      // cancel command
       new JoystickButton(apacController, 1)
           .onTrue(
               Commands.runOnce(
