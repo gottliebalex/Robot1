@@ -51,20 +51,21 @@ public class ElevatorSubsystem extends SubsystemBase {
           .withClosedLoopController(
               1.5, 0, 0, MetersPerSecond.of(2), MetersPerSecondPerSecond.of(5))
           .withSimClosedLoopController(
-              0.1, 0, 0, MetersPerSecond.of(2), MetersPerSecondPerSecond.of(2))
-          .withSoftLimit(Meters.of(0), Meters.of(2.5))
-          .withGearing(gearing(gearbox(2.4444, 2.8)))
-          .withIdleMode(MotorMode.COAST)
+              5, 0, 0, MetersPerSecond.of(2), MetersPerSecondPerSecond.of(2))
+          .withSoftLimit(Meters.of(0.125), Meters.of(2.5))
+          .withGearing(gearing(gearbox(6.8444)))
+          //      .withExternalEncoder(armMotor.getAbsoluteEncoder())
+          .withIdleMode(MotorMode.BRAKE)
           .withTelemetry("ElevatorMotor", TelemetryVerbosity.HIGH)
           //      .withSpecificTelemetry("ElevatorMotor", motorTelemetryConfig)
           .withStatorCurrentLimit(Amps.of(60))
-          .withSupplyCurrentLimit(Amps.of(50))
+          .withSupplyCurrentLimit(Amps.of(70))
           //      .withVoltageCompensation(Volts.of(12))
           .withMotorInverted(false)
           //      .withClosedLoopRampRate(Seconds.of(0.25))
           //      .withOpenLoopRampRate(Seconds.of(0.25))
           .withFeedforward(new ElevatorFeedforward(0.2, 0.3, 0.78, 0.001))
-          .withSimFeedforward(new ElevatorFeedforward(0.0, 0.17, 0.762, 0.0))
+          .withSimFeedforward(new ElevatorFeedforward(0.0, 0.0, 0.0, 0.0))
           .withControlMode(ControlMode.CLOSED_LOOP)
           .withFollowers(Pair.of(elevatorFollower, true))
           .withStartingPosition(Inches.of(0))
@@ -84,7 +85,7 @@ public class ElevatorSubsystem extends SubsystemBase {
           .withHardLimits(Meters.of(0), Meters.of(2.5))
           .withTelemetry("Elevator", TelemetryVerbosity.HIGH)
           .withMechanismPositionConfig(m_robotToMechanism)
-          .withMass(Pounds.of(10));
+          .withMass(Pounds.of(15));
   private final Elevator m_elevator = new Elevator(m_config);
 
   public static enum ElevatorPosition {

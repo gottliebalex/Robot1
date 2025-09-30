@@ -2,10 +2,10 @@ package frc.robot.commands;
 
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
-import frc.robot.FieldConstants.Reef.PipeSide;
 import frc.robot.subsystems.drive.Drive;
 import frc.robot.subsystems.elevator.ElevatorSubsystem;
 import frc.robot.subsystems.wrist.WristSubsystem;
+import frc.robot.FieldConstants.Reef.PipeSide;
 
 /** Composite scoring commands for reef levels. */
 public final class ScoreCommands {
@@ -52,9 +52,15 @@ public final class ScoreCommands {
     return Commands.sequence(reachTargets, postScore).withName("Score L" + level);
   }
 
-  /** Score at a reef level targeting a specific pipe side (left/right). */
+  /**
+   * Score at a reef level targeting a specific pipe side (left/right).
+   */
   public static Command scoreReefLevel(
-      Drive drive, ElevatorSubsystem elevator, WristSubsystem wrist, int level, PipeSide side) {
+      Drive drive,
+      ElevatorSubsystem elevator,
+      WristSubsystem wrist,
+      int level,
+      PipeSide side) {
     // Map level -> elevator height + wrist angle
     var elevatorCmd =
         switch (level) {
@@ -102,7 +108,8 @@ public final class ScoreCommands {
   }
 
   // Convenience helpers for left/right pipe selection
-  public static Command scoreL2Left(Drive drive, ElevatorSubsystem elevator, WristSubsystem wrist) {
+  public static Command scoreL2Left(
+      Drive drive, ElevatorSubsystem elevator, WristSubsystem wrist) {
     return scoreReefLevel(drive, elevator, wrist, 2, PipeSide.LEFT).withName("Score L2 Left");
   }
 
@@ -111,7 +118,8 @@ public final class ScoreCommands {
     return scoreReefLevel(drive, elevator, wrist, 2, PipeSide.RIGHT).withName("Score L2 Right");
   }
 
-  public static Command scoreL3Left(Drive drive, ElevatorSubsystem elevator, WristSubsystem wrist) {
+  public static Command scoreL3Left(
+      Drive drive, ElevatorSubsystem elevator, WristSubsystem wrist) {
     return scoreReefLevel(drive, elevator, wrist, 3, PipeSide.LEFT).withName("Score L3 Left");
   }
 
@@ -120,7 +128,8 @@ public final class ScoreCommands {
     return scoreReefLevel(drive, elevator, wrist, 3, PipeSide.RIGHT).withName("Score L3 Right");
   }
 
-  public static Command scoreL4Left(Drive drive, ElevatorSubsystem elevator, WristSubsystem wrist) {
+  public static Command scoreL4Left(
+      Drive drive, ElevatorSubsystem elevator, WristSubsystem wrist) {
     return scoreReefLevel(drive, elevator, wrist, 4, PipeSide.LEFT).withName("Score L4 Left");
   }
 
