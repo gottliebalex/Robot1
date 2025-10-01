@@ -21,6 +21,24 @@ public class FieldConstants {
   public static final double FIELD_HEIGHT = 8.0518;
   public static final double FIELD_LENGTH = 17.548249;
 
+  // Cached alliance to avoid repeated DriverStation lookups on hot paths
+  private static volatile Alliance ALLIANCE_CACHE =
+      DriverStation.getAlliance().orElse(Alliance.Blue);
+
+  public static Alliance getAllianceCached() {
+    return ALLIANCE_CACHE;
+  }
+
+  public static void setAllianceCached(Alliance alliance) {
+    ALLIANCE_CACHE = alliance;
+    // Notify nested classes that depend on alliance selection
+    Reef.onAllianceUpdated(ALLIANCE_CACHE);
+  }
+
+  public static void refreshAllianceCache() {
+    setAllianceCached(DriverStation.getAlliance().orElse(Alliance.Blue));
+  }
+
   public static final class Reef {
     /** Label the 6 reef faces clockwise starting at +X (adjust order to your liking). */
     public enum Branch {
@@ -38,15 +56,57 @@ public class FieldConstants {
       RIGHT
     }
 
+    /** Scoring levels for precomputation using EnumMap. */
+    public enum Level {
+      L1,
+      L2,
+      L3,
+      L4;
+
+      public static Level fromInt(int level) {
+        return switch (level) {
+          case 1 -> L1;
+          case 2 -> L2;
+          case 3 -> L3;
+          default -> L4;
+        };
+      }
+    }
+
     public static final Translation2d CENTER_BLUE = new Translation2d(4.4893, 4.0259);
 
     /** Distance from reef center to the face plane center (BLUE ref). */
     public static final double FACE_RADIUS = 0.83175;
 
-    /** Orientation of each face (normal pointing *away* from reef center). */
-    private static final Map<Branch, Rotation2d> FACE_NORMALS_BLUE = new EnumMap<>(Branch.class);
+    /** Orientation of each face (normal pointing away from reef center), BLUE ref. */
+    private static final EnumMap<Branch, Rotation2d> FACE_NORMALS_BLUE =
+        new EnumMap<>(Branch.class);
     /** Center point of each face (BLUE ref). */
-    private static final Map<Branch, Translation2d> FACE_CENTERS_BLUE = new EnumMap<>(Branch.class);
+    private static final EnumMap<Branch, Translation2d> FACE_CENTERS_BLUE =
+        new EnumMap<>(Branch.class);
+
+    /** BLUE face poses (center + outward normal). */
+    private static final EnumMap<Branch, Pose2d> FACE_POSES_BLUE = new EnumMap<>(Branch.class);
+    /** RED face poses (pre-flipped from BLUE). */
+    private static final EnumMap<Branch, Pose2d> FACE_POSES_RED = new EnumMap<>(Branch.class);
+
+    // Precomputed scoring poses (no side) for BLUE and RED
+    private static final EnumMap<Branch, EnumMap<Level, Pose2d>> SCORING_NO_SIDE_BLUE =
+        new EnumMap<>(Branch.class);
+    private static final EnumMap<Branch, EnumMap<Level, Pose2d>> SCORING_NO_SIDE_RED =
+        new EnumMap<>(Branch.class);
+    // Precomputed scoring poses (with side) for BLUE and RED
+    private static final EnumMap<Branch, EnumMap<Level, EnumMap<PipeSide, Pose2d>>>
+        SCORING_SIDE_BLUE = new EnumMap<>(Branch.class);
+    private static final EnumMap<Branch, EnumMap<Level, EnumMap<PipeSide, Pose2d>>>
+        SCORING_SIDE_RED = new EnumMap<>(Branch.class);
+
+    // CURRENT views that point to the active alliance maps. Reassigned when alliance changes
+    private static Map<Branch, Pose2d> CURRENT_FACE_POSES = FACE_POSES_BLUE;
+    private static Map<Branch, EnumMap<Level, Pose2d>> CURRENT_SCORING_NO_SIDE =
+        SCORING_NO_SIDE_BLUE;
+    private static Map<Branch, EnumMap<Level, EnumMap<PipeSide, Pose2d>>> CURRENT_SCORING_SIDE =
+        SCORING_SIDE_BLUE;
 
     /** Standoff per level, negative moves robot *toward* the reef along the face normal. */
     public static final double STANDOFF_L1 = 0.35;
@@ -73,12 +133,80 @@ public class FieldConstants {
       }
     }
 
+    // Precompute face poses and scoring targets for BLUE and RED once
+    static {
+      // Face poses
+      for (var e : FACE_CENTERS_BLUE.entrySet()) {
+        Branch br = e.getKey();
+        Pose2d bluePose = new Pose2d(e.getValue(), FACE_NORMALS_BLUE.get(br));
+        FACE_POSES_BLUE.put(br, bluePose);
+        FACE_POSES_RED.put(br, allianceFlip(bluePose));
+      }
+
+      // Scoring poses for all branches, all levels
+      for (Branch br : Branch.values()) {
+        SCORING_NO_SIDE_BLUE.put(br, new EnumMap<>(Level.class));
+        SCORING_NO_SIDE_RED.put(br, new EnumMap<>(Level.class));
+        SCORING_SIDE_BLUE.put(br, new EnumMap<>(Level.class));
+        SCORING_SIDE_RED.put(br, new EnumMap<>(Level.class));
+
+        Pose2d blueBase = FACE_POSES_BLUE.get(br);
+        for (Level lvl : Level.values()) {
+          double standoff =
+              switch (lvl) {
+                case L1 -> STANDOFF_L1;
+                case L2 -> STANDOFF_L2;
+                case L3 -> STANDOFF_L3;
+                case L4 -> STANDOFF_L4;
+              };
+          Translation2d normalOffset =
+              new Translation2d(standoff, 0).rotateBy(blueBase.getRotation());
+          Rotation2d inward = blueBase.getRotation().plus(Rotation2d.fromDegrees(180));
+
+          // No-side center target
+          Pose2d blueNoSide = new Pose2d(blueBase.getTranslation().plus(normalOffset), inward);
+          SCORING_NO_SIDE_BLUE.get(br).put(lvl, blueNoSide);
+          SCORING_NO_SIDE_RED.get(br).put(lvl, allianceFlip(blueNoSide));
+
+          // Side-specific
+          EnumMap<PipeSide, Pose2d> blueSideMap = new EnumMap<>(PipeSide.class);
+          EnumMap<PipeSide, Pose2d> redSideMap = new EnumMap<>(PipeSide.class);
+          double halfSpacingM = inchesToMeters(12.938) / 2.0;
+          Rotation2d leftDir = inward.plus(Rotation2d.fromDegrees(90));
+
+          // LEFT pipe
+          Translation2d leftOffset = new Translation2d(+halfSpacingM, 0).rotateBy(leftDir);
+          Pose2d blueLeft =
+              new Pose2d(blueBase.getTranslation().plus(normalOffset).plus(leftOffset), inward);
+          blueSideMap.put(PipeSide.LEFT, blueLeft);
+          redSideMap.put(PipeSide.LEFT, allianceFlip(blueLeft));
+
+          // RIGHT pipe
+          Translation2d rightOffset = new Translation2d(-halfSpacingM, 0).rotateBy(leftDir);
+          Pose2d blueRight =
+              new Pose2d(blueBase.getTranslation().plus(normalOffset).plus(rightOffset), inward);
+          blueSideMap.put(PipeSide.RIGHT, blueRight);
+          redSideMap.put(PipeSide.RIGHT, allianceFlip(blueRight));
+
+          SCORING_SIDE_BLUE.get(br).put(lvl, blueSideMap);
+          SCORING_SIDE_RED.get(br).put(lvl, redSideMap);
+        }
+      }
+
+      // Initialize current views to the cached alliance once
+      onAllianceUpdated(FieldConstants.getAllianceCached());
+    }
+
     /** Returns the BLUE-reference face-center pose (position + facing) for a branch. */
     public static Pose2d blueFacePose(Branch branch) {
-      return new Pose2d(FACE_CENTERS_BLUE.get(branch), FACE_NORMALS_BLUE.get(branch));
+      return FACE_POSES_BLUE.get(branch);
     }
 
     public static Pose2d scoringPose(Branch branch, int level) {
+      if (CURRENT_SCORING_NO_SIDE != null) {
+        Level lvl = Level.fromInt(level);
+        return CURRENT_SCORING_NO_SIDE.get(branch).get(lvl);
+      }
       Pose2d blue = blueFacePose(branch);
       double standoff =
           switch (level) {
@@ -103,10 +231,14 @@ public class FieldConstants {
     }
 
     /**
-     * Scoring pose offset to the selected pipe side (left/right) relative to the face center.
-     * The offset is applied in the BLUE frame and then alliance-flipped if needed.
+     * Scoring pose offset to the selected pipe side (left/right) relative to the face center. The
+     * offset is applied in the BLUE frame and then alliance-flipped if needed.
      */
     public static Pose2d scoringPose(Branch branch, int level, PipeSide side) {
+      if (CURRENT_SCORING_SIDE != null) {
+        Level lvl = Level.fromInt(level);
+        return CURRENT_SCORING_SIDE.get(branch).get(lvl).get(side);
+      }
       Pose2d blue = blueFacePose(branch);
 
       // Standoff along face normal (positive is away from reef)
@@ -142,6 +274,19 @@ public class FieldConstants {
      * targeting.
      */
     public static Branch nearestBranch(Pose2d robotPose) {
+      if (CURRENT_FACE_POSES != null) {
+        Branch best = Branch.A;
+        double bestDist = Double.POSITIVE_INFINITY;
+        for (var e : CURRENT_FACE_POSES.entrySet()) {
+          Translation2d fc = e.getValue().getTranslation();
+          double d = robotPose.getTranslation().getDistance(fc);
+          if (d < bestDist) {
+            bestDist = d;
+            best = e.getKey();
+          }
+        }
+        return best;
+      }
       Branch best = Branch.A;
       double bestDist = Double.POSITIVE_INFINITY;
       for (var e : FACE_CENTERS_BLUE.entrySet()) {
@@ -159,6 +304,14 @@ public class FieldConstants {
         }
       }
       return best;
+    }
+
+    /** Updates current cached maps when alliance changes. */
+    static void onAllianceUpdated(Alliance alliance) {
+      boolean isRed = alliance == Alliance.Red;
+      CURRENT_FACE_POSES = isRed ? FACE_POSES_RED : FACE_POSES_BLUE;
+      CURRENT_SCORING_NO_SIDE = isRed ? SCORING_NO_SIDE_RED : SCORING_NO_SIDE_BLUE;
+      CURRENT_SCORING_SIDE = isRed ? SCORING_SIDE_RED : SCORING_SIDE_BLUE;
     }
 
     private static Pose2d allianceFlip(Pose2d bluePose) {
@@ -204,8 +357,7 @@ public class FieldConstants {
   public static final int BLUE_REEF_LEFT_BARGE = 22;
 
   public static boolean isBlueAlliance() {
-    return DriverStation.getAlliance().orElse(DriverStation.Alliance.Blue)
-        == DriverStation.Alliance.Blue;
+    return getAllianceCached() == DriverStation.Alliance.Blue;
   }
 
   public static final Pose2d LEFT_STARTING_POSE_BLUE =
