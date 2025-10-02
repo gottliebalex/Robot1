@@ -3,6 +3,7 @@ package frc.robot.commands;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import frc.robot.FieldConstants.Reef.PipeSide;
+import frc.robot.subsystems.SubsystemConstants;
 import frc.robot.subsystems.drive.Drive;
 import frc.robot.subsystems.elevator.ElevatorSubsystem;
 import frc.robot.subsystems.wrist.WristSubsystem;
@@ -22,18 +23,18 @@ public final class ScoreCommands {
     // Map level -> elevator height + wrist angle
     var elevatorCmd =
         switch (level) {
-          case 2 -> elevator.setHeight(ElevatorSubsystem.ElevatorPosition.L2.distance());
-          case 3 -> elevator.setHeight(ElevatorSubsystem.ElevatorPosition.L3.distance());
-          case 4 -> elevator.setHeight(ElevatorSubsystem.ElevatorPosition.L4.distance());
-          default -> elevator.setHeight(ElevatorSubsystem.ElevatorPosition.Down.distance());
+          case 2 -> elevator.setHeight(SubsystemConstants.ElevatorPosition.L2.distance());
+          case 3 -> elevator.setHeight(SubsystemConstants.ElevatorPosition.L3.distance());
+          case 4 -> elevator.setHeight(SubsystemConstants.ElevatorPosition.L4.distance());
+          default -> elevator.setHeight(SubsystemConstants.ElevatorPosition.Down.distance());
         };
 
     var wristCmd =
         switch (level) {
-          case 2 -> wrist.setAngle(WristSubsystem.WristPosition.L2Score.angle());
-          case 3 -> wrist.setAngle(WristSubsystem.WristPosition.L3Score.angle());
-          case 4 -> wrist.setAngle(WristSubsystem.WristPosition.L4Score.angle());
-          default -> wrist.setAngle(WristSubsystem.WristPosition.Stowed.angle());
+          case 2 -> wrist.setAngle(SubsystemConstants.WristPosition.L2Score.angle());
+          case 3 -> wrist.setAngle(SubsystemConstants.WristPosition.L3Score.angle());
+          case 4 -> wrist.setAngle(SubsystemConstants.WristPosition.L4Score.angle());
+          default -> wrist.setAngle(SubsystemConstants.WristPosition.Stowed.angle());
         };
 
     Command alignCmd = DriveCommands.alignToNearestAllianceReefFace(drive, level);
@@ -58,18 +59,18 @@ public final class ScoreCommands {
     // Map level -> elevator height + wrist angle
     var elevatorCmd =
         switch (level) {
-          case 2 -> elevator.setHeight(ElevatorSubsystem.ElevatorPosition.L2.distance());
-          case 3 -> elevator.setHeight(ElevatorSubsystem.ElevatorPosition.L3.distance());
-          case 4 -> elevator.setHeight(ElevatorSubsystem.ElevatorPosition.L4.distance());
-          default -> elevator.setHeight(ElevatorSubsystem.ElevatorPosition.Down.distance());
+          case 2 -> elevator.setHeight(SubsystemConstants.ElevatorPosition.L2.distance());
+          case 3 -> elevator.setHeight(SubsystemConstants.ElevatorPosition.L3.distance());
+          case 4 -> elevator.setHeight(SubsystemConstants.ElevatorPosition.L4.distance());
+          default -> elevator.setHeight(SubsystemConstants.ElevatorPosition.Down.distance());
         };
 
     var wristCmd =
         switch (level) {
-          case 2 -> wrist.setAngle(WristSubsystem.WristPosition.L2Score.angle());
-          case 3 -> wrist.setAngle(WristSubsystem.WristPosition.L3Score.angle());
-          case 4 -> wrist.setAngle(WristSubsystem.WristPosition.L4Score.angle());
-          default -> wrist.setAngle(WristSubsystem.WristPosition.Stowed.angle());
+          case 2 -> wrist.setAngle(SubsystemConstants.WristPosition.L2Score.angle());
+          case 3 -> wrist.setAngle(SubsystemConstants.WristPosition.L3Score.angle());
+          case 4 -> wrist.setAngle(SubsystemConstants.WristPosition.L4Score.angle());
+          default -> wrist.setAngle(SubsystemConstants.WristPosition.Stowed.angle());
         };
 
     Command alignCmd = DriveCommands.alignToNearestAllianceReefFace(drive, level, side);

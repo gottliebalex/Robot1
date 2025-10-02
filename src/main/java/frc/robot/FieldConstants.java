@@ -53,7 +53,8 @@ public class FieldConstants {
     /** Select which pipe on a face to align to when scoring. */
     public enum PipeSide {
       LEFT,
-      RIGHT
+      RIGHT,
+      CENTER
     }
 
     /** Scoring levels for precomputation using EnumMap. */
@@ -109,10 +110,10 @@ public class FieldConstants {
         SCORING_SIDE_BLUE;
 
     /** Standoff per level, negative moves robot *toward* the reef along the face normal. */
-    public static final double STANDOFF_L1 = 0.35;
+    public static final double STANDOFF_L1 = 0.4;
 
     public static final double STANDOFF_L2 = 0.45;
-    public static final double STANDOFF_L3 = 0.55;
+    public static final double STANDOFF_L3 = STANDOFF_L2;
     public static final double STANDOFF_L4 = 0.65;
 
     static {
@@ -161,7 +162,7 @@ public class FieldConstants {
               };
           Translation2d normalOffset =
               new Translation2d(standoff, 0).rotateBy(blueBase.getRotation());
-          Rotation2d inward = blueBase.getRotation().plus(Rotation2d.fromDegrees(180));
+          Rotation2d inward = blueBase.getRotation();
 
           // No-side center target
           Pose2d blueNoSide = new Pose2d(blueBase.getTranslation().plus(normalOffset), inward);
@@ -174,15 +175,19 @@ public class FieldConstants {
           double halfSpacingM = inchesToMeters(12.938) / 2.0;
           Rotation2d leftDir = inward.plus(Rotation2d.fromDegrees(90));
 
+          // CENTER (same as no-side)
+          blueSideMap.put(PipeSide.CENTER, blueNoSide);
+          redSideMap.put(PipeSide.CENTER, allianceFlip(blueNoSide));
+
           // LEFT pipe
-          Translation2d leftOffset = new Translation2d(+halfSpacingM, 0).rotateBy(leftDir);
+          Translation2d leftOffset = new Translation2d(-halfSpacingM, 0).rotateBy(leftDir);
           Pose2d blueLeft =
               new Pose2d(blueBase.getTranslation().plus(normalOffset).plus(leftOffset), inward);
           blueSideMap.put(PipeSide.LEFT, blueLeft);
           redSideMap.put(PipeSide.LEFT, allianceFlip(blueLeft));
 
           // RIGHT pipe
-          Translation2d rightOffset = new Translation2d(-halfSpacingM, 0).rotateBy(leftDir);
+          Translation2d rightOffset = new Translation2d(+halfSpacingM, 0).rotateBy(leftDir);
           Pose2d blueRight =
               new Pose2d(blueBase.getTranslation().plus(normalOffset).plus(rightOffset), inward);
           blueSideMap.put(PipeSide.RIGHT, blueRight);
@@ -257,9 +262,14 @@ public class FieldConstants {
       // Lateral offset to the chosen pipe: half of the pipe center spacing, left is +90° from
       // inward, right is -90°
       double halfSpacingM = inchesToMeters(12.938) / 2.0;
-      double sign = (side == PipeSide.LEFT) ? +1.0 : -1.0;
       Rotation2d leftDir = inward.plus(Rotation2d.fromDegrees(90));
-      Translation2d lateralOffset = new Translation2d(sign * halfSpacingM, 0).rotateBy(leftDir);
+      Translation2d lateralOffset;
+      if (side == PipeSide.CENTER) {
+        lateralOffset = new Translation2d();
+      } else {
+        double sign = (side == PipeSide.LEFT) ? +1.0 : -1.0;
+        lateralOffset = new Translation2d(sign * halfSpacingM, 0).rotateBy(leftDir);
+      }
 
       Pose2d blueTarget =
           new Pose2d(blue.getTranslation().plus(normalOffset).plus(lateralOffset), inward);

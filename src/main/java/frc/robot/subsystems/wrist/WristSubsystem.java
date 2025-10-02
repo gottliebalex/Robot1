@@ -20,6 +20,7 @@ import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.subsystems.SubsystemConstants;
+import frc.robot.subsystems.SubsystemConstants.WristPosition;
 import yams.mechanisms.config.ArmConfig;
 import yams.mechanisms.config.MechanismPositionConfig;
 import yams.mechanisms.positional.Arm;
@@ -78,26 +79,6 @@ public class WristSubsystem extends SubsystemBase {
           .withHorizontalZero(Degrees.of(0))
           .withMechanismPositionConfig(robotToMechanism);
   private final Arm arm = new Arm(m_config);
-
-  public static enum WristPosition {
-    Stowed(Degrees.of(0)),
-    AlgaeGroundIntake(Degrees.of(150)),
-    L1Score(Degrees.of(-120)),
-    L2Score(Degrees.of(140)),
-    L3Score(Degrees.of(140)),
-    L4Score(Degrees.of(120)),
-    Test(Degrees.of(-180));
-
-    private final Angle angle;
-
-    WristPosition(Angle angle) {
-      this.angle = angle;
-    }
-
-    public Angle angle() {
-      return angle;
-    }
-  }
 
   public WristSubsystem() {}
 

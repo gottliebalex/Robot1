@@ -60,6 +60,9 @@ public class RobotContainer {
   private final CommandXboxController controller = new CommandXboxController(0);
   private final GenericHID apacController = new GenericHID(1);
 
+  // Autopilot level selection (L1-L4 standoff). Defaults to L2.
+  private int autopilotLevel = 2;
+
   // Dashboard inputs
   private final LoggedDashboardChooser<Command> autoChooser;
   private final Map<Command, Pose2d> autoStartingPosesBlue = new HashMap<>();
@@ -223,15 +226,56 @@ public class RobotContainer {
                     drive)
                 .ignoringDisable(true));
 
-    // Test: align to the nearest alliance-aware reef face (default L2) while Y is held
-    controller.y().whileTrue(DriveCommands.alignToNearestAllianceReefFace(drive, 2));
-    // While holding bumpers, align to nearest face L2 but choose left/right pipe.
+    // --- Autopilot: select level standoff (APAC controller), then triggers/Y for alignment ---
+    // APAC button mappings for level selection (press to set):
+    // 8 -> L1, 9 -> L2, 10 -> L3, 11 -> L4
+    new JoystickButton(apacController, 8)
+        .onTrue(
+            Commands.runOnce(
+                () -> {
+                  autopilotLevel = 1;
+                  System.out.println("Autopilot level set to L1 (APAC)");
+                }));
+    new JoystickButton(apacController, 9)
+        .onTrue(
+            Commands.runOnce(
+                () -> {
+                  autopilotLevel = 2;
+                  System.out.println("Autopilot level set to L2 (APAC)");
+                }));
+    new JoystickButton(apacController, 10)
+        .onTrue(
+            Commands.runOnce(
+                () -> {
+                  autopilotLevel = 3;
+                  System.out.println("Autopilot level set to L3 (APAC)");
+                }));
+    new JoystickButton(apacController, 11)
+        .onTrue(
+            Commands.runOnce(
+                () -> {
+                  autopilotLevel = 4;
+                  System.out.println("Autopilot level set to L4 (APAC)");
+                }));
+
+    // Left/Right bumpers: align to nearest face LEFT/RIGHT pipe at selected level while held
     controller
         .leftBumper()
-        .whileTrue(DriveCommands.alignToNearestAllianceReefFace(drive, 2, PipeSide.LEFT));
+        .whileTrue(
+            DriveCommands.alignToNearestAllianceReefFace(
+                drive, () -> autopilotLevel, PipeSide.LEFT));
     controller
         .rightBumper()
-        .whileTrue(DriveCommands.alignToNearestAllianceReefFace(drive, 2, PipeSide.RIGHT));
+        .whileTrue(
+            DriveCommands.alignToNearestAllianceReefFace(
+                drive, () -> autopilotLevel, PipeSide.RIGHT));
+
+    // Center button: align to center pipe (no lateral offset) at selected level while held
+    controller
+        .y()
+        .whileTrue(
+            DriveCommands.alignToNearestAllianceReefFace(
+                drive, () -> autopilotLevel, PipeSide.CENTER));
 
     if (elevator != null && wrist != null) {
       //   // Button box

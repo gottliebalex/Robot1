@@ -88,29 +88,6 @@ public class ElevatorSubsystem extends SubsystemBase {
           .withMass(Pounds.of(15));
   private final Elevator m_elevator = new Elevator(m_config);
 
-  public static enum ElevatorPosition {
-    Down(Inches.of(8)),
-    Intake(Inches.of(16)),
-    L1(Inches.of(12)),
-    L2(Inches.of(28)),
-    L3(Inches.of(40)),
-    L4(Inches.of(70)),
-    L2Algae(Inches.of(32)),
-    L3Algae(Inches.of(45)),
-    Barge(Inches.of(85)),
-    Zero(Inches.of(0));
-
-    private final Distance distance;
-
-    ElevatorPosition(Distance distance) {
-      this.distance = distance;
-    }
-
-    public Distance distance() {
-      return distance;
-    }
-  }
-
   //  public static boolean isFollower(TalonFX motor) {
   //    ControlRequest applied = motor.getAppliedControl();
   //    return applied instanceof Follower;

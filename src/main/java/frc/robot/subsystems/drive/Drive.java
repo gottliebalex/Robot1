@@ -378,22 +378,29 @@ public class Drive extends SubsystemBase {
 
   // config
   private static final APConstraints kAPConstraints =
-      new APConstraints().withAcceleration(5.0).withJerk(3.0);
+      new APConstraints().withAcceleration(5.0).withJerk(2.0);
 
   private static final APProfile kAPProfile =
       new APProfile(kAPConstraints)
           .withErrorXY(Meters.of(0.04))
           .withErrorTheta(Degrees.of(1.0))
-          .withBeelineRadius(Meters.of(0.15));
+          .withBeelineRadius(Centimeters.of(8));
 
   // instance used by align(...)
   public static final Autopilot kAutopilot = new Autopilot(kAPProfile);
+
+  public static APTarget facingBackTo(Pose2d pose) {
+    return new APTarget(pose)
+        .withEntryAngle(pose.getRotation().plus(new Rotation2d(Math.PI)))
+        .withRotationRadius(Meters.of(0.0)); // tring to enforce the heading for the whole path
+  }
 
   public Command align(APTarget target) {
     // Local heading controller (same numbers you use in DriveCommands)
     ProfiledPIDController angleController =
         new ProfiledPIDController(5.0, 0.0, 0.4, new TrapezoidProfile.Constraints(8.0, 20.0));
     angleController.enableContinuousInput(-Math.PI, Math.PI);
+    angleController.setTolerance(Math.toRadians(1.0));
 
     return this.run(
             () -> {
