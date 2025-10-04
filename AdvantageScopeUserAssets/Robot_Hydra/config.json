@@ -1,0 +1,56 @@
+{
+    "name": "Hydra",
+    "rotations": [
+        {
+            "axis": "x",
+            "degrees": 180
+        },
+        {
+            "axis": "z",
+            "degrees": 90
+        }
+    ],
+    "position": [
+        0,
+        0,
+        0
+    ],
+    "cameras": [
+        {
+            "name": "PV BR",
+            "fov": "75",
+            "resolution": [1200, 800],
+            "rotations": [
+                {
+                    "axis": "y",
+                    "degrees": -20
+                },
+                {
+                    "axis": "z",
+                    "degrees": -140
+                }                
+            ],
+            "position": [-0.225, 0.279, 0.209]
+        },
+
+        {
+            "name": "PV BL",
+            "fov": "75",
+            "position": [-0.225, -0.279, 0.209],
+            "resolution": [1200, 800],
+            "rotations": [
+                {
+                    "axis": "y",
+                    "degrees": -20
+                },
+                {
+                    "axis": "z",
+                    "degrees": 140
+                }                
+            ]
+        }
+    ],
+
+    "components": [
+    ]
+}
