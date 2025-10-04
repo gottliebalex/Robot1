@@ -20,7 +20,6 @@ import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.subsystems.SubsystemConstants;
-import frc.robot.subsystems.SubsystemConstants.WristPosition;
 import yams.mechanisms.config.ArmConfig;
 import yams.mechanisms.config.MechanismPositionConfig;
 import yams.mechanisms.positional.Arm;
@@ -30,21 +29,24 @@ import yams.motorcontrollers.SmartMotorControllerConfig.ControlMode;
 import yams.motorcontrollers.SmartMotorControllerConfig.MotorMode;
 import yams.motorcontrollers.SmartMotorControllerConfig.TelemetryVerbosity;
 import yams.motorcontrollers.remote.TalonFXWrapper;
+import yams.telemetry.SmartMotorControllerTelemetryConfig;
 
 public class WristSubsystem extends SubsystemBase {
 
   private final TalonFX armMotor =
       new TalonFX(SubsystemConstants.Wrist_ID, SubsystemConstants.CANBUS);
-  //  private final SmartMotorControllerTelemetryConfig motorTelemetryConfig = new
-  // SmartMotorControllerTelemetryConfig()
-  //          .withMechanismPosition()
-  //          .withRotorPosition()
-  //          .withMechanismLowerLimit()
-  //          .withMechanismUpperLimit();
+  private final SmartMotorControllerTelemetryConfig motorTelemetryConfig =
+      new SmartMotorControllerTelemetryConfig()
+          .withMechanismPosition()
+          .withRotorPosition()
+          .withMechanismLowerLimit()
+          .withMechanismUpperLimit();
   private final SmartMotorControllerConfig motorConfig =
       new SmartMotorControllerConfig(this)
           .withClosedLoopController(
               6, 0, 0, DegreesPerSecond.of(360), DegreesPerSecondPerSecond.of(1440))
+          .withSimClosedLoopController(
+              10, 0, 0, DegreesPerSecond.of(360), DegreesPerSecondPerSecond.of(720))
           //      .withSoftLimit(Degrees.of(-360), Degrees.of(360))
           .withGearing(gearing(gearbox(67.407)))
           //      .withExternalEncoder(armMotor.getAbsoluteEncoder())
@@ -52,11 +54,10 @@ public class WristSubsystem extends SubsystemBase {
           .withTelemetry("ArmMotor", TelemetryVerbosity.HIGH)
           //      .withSpecificTelemetry("ArmMotor", motorTelemetryConfig)
           .withStatorCurrentLimit(Amps.of(40))
-          //      .withVoltageCompensation(Volts.of(12))
+          .withSupplyCurrentLimit(Amps.of(40))
           .withMotorInverted(false)
-          // .withClosedLoopRampRate(Seconds.of(0.25))
-          // .withOpenLoopRampRate(Seconds.of(0.25))
           .withFeedforward(new ArmFeedforward(.2, .2, .4, .003))
+          .withSimFeedforward(new ArmFeedforward(0, 0.1009, 9.7, 0.1))
           .withControlMode(ControlMode.CLOSED_LOOP)
           .withStartingPosition(Degrees.of(0))
       //      .withClosedLoopControlPeriod(Milliseconds.of(1))
@@ -71,10 +72,10 @@ public class WristSubsystem extends SubsystemBase {
 
   private ArmConfig m_config =
       new ArmConfig(motor)
-          .withLength(Meters.of(0.135))
+          .withLength(Meters.of(0.25))
           .withHardLimit(Degrees.of(-360), Degrees.of(360))
           .withTelemetry("ArmExample", TelemetryVerbosity.HIGH)
-          .withMass(Pounds.of(1))
+          .withMass(Pounds.of(6))
           .withStartingPosition(Degrees.of(0))
           .withHorizontalZero(Degrees.of(0))
           .withMechanismPositionConfig(robotToMechanism);
@@ -94,11 +95,11 @@ public class WristSubsystem extends SubsystemBase {
     return arm.set(dutycycle);
   }
 
-  public class WristCommands {
-    public static Command to(WristSubsystem wrist, WristPosition pos) {
-      return Commands.runOnce(() -> wrist.setAngle(pos.angle()), wrist);
-    }
-  }
+  // public class WristCommands {
+  //   public static Command to(WristSubsystem wrist, WristPosition pos) {
+  //     return Commands.runOnce(() -> wrist.setAngle(pos.angle()), wrist);
+  //   }
+  // }
 
   public Command sysId() {
     return arm.sysId(Volts.of(3), Volts.of(3).per(Second), Second.of(30));

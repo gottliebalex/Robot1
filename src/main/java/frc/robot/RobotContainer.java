@@ -13,6 +13,9 @@
 
 package frc.robot;
 
+import static frc.robot.subsystems.vision.VisionConstants.robotToCamera0;
+import static frc.robot.subsystems.vision.VisionConstants.robotToCamera1;
+
 import com.pathplanner.lib.auto.AutoBuilder;
 import com.pathplanner.lib.path.PathPlannerPath;
 import com.pathplanner.lib.util.FlippingUtil;
@@ -39,10 +42,15 @@ import frc.robot.subsystems.drive.ModuleIO;
 import frc.robot.subsystems.drive.ModuleIOSim;
 import frc.robot.subsystems.drive.ModuleIOTalonFX;
 import frc.robot.subsystems.elevator.ElevatorSubsystem;
+import frc.robot.subsystems.vision.Vision;
+import frc.robot.subsystems.vision.VisionIO;
+import frc.robot.subsystems.vision.VisionIOPhotonVision;
+import frc.robot.subsystems.vision.VisionIOPhotonVisionSim;
 import frc.robot.subsystems.wrist.WristSubsystem;
 import java.util.HashMap;
 import java.util.Map;
 import org.littletonrobotics.junction.networktables.LoggedDashboardChooser;
+import org.littletonrobotics.junction.networktables.LoggedNetworkNumber;
 
 /**
  * This class is where the bulk of the robot should be declared. Since Command-based is a
@@ -53,15 +61,13 @@ import org.littletonrobotics.junction.networktables.LoggedDashboardChooser;
 public class RobotContainer {
   // Subsystems
   private final Drive drive;
+  private final Vision vision;
   private final ElevatorSubsystem elevator;
   private final WristSubsystem wrist;
 
   // Controller
   private final CommandXboxController controller = new CommandXboxController(0);
   private final GenericHID apacController = new GenericHID(1);
-
-  // Autopilot level selection (L1-L4 standoff). Defaults to L2.
-  private int autopilotLevel = 2;
 
   // Dashboard inputs
   private final LoggedDashboardChooser<Command> autoChooser;
@@ -70,6 +76,8 @@ public class RobotContainer {
   private final LoggedDashboardChooser<StartPose> startPoseChooser;
   private final Map<StartPose, Pose2d> manualStartingPosesBlue = new HashMap<>();
   private final Map<StartPose, Pose2d> manualStartingPosesRed = new HashMap<>();
+  private final LoggedNetworkNumber ReefLevel = // auto align level selection
+      new LoggedNetworkNumber("Autopilot/ReefLevel", 4);
 
   /** Manual starting pose options. */
   public enum StartPose {
@@ -93,6 +101,12 @@ public class RobotContainer {
                 new ModuleIOTalonFX(TunerConstants.BackLeft),
                 new ModuleIOTalonFX(TunerConstants.BackRight));
 
+        vision =
+            new Vision(
+                drive::addVisionMeasurement,
+                new VisionIOPhotonVision("camera_0", robotToCamera0),
+                new VisionIOPhotonVision("camera_1", robotToCamera1));
+
         elevator = new ElevatorSubsystem();
         wrist = new WristSubsystem();
         break;
@@ -107,6 +121,11 @@ public class RobotContainer {
                 new ModuleIOSim(TunerConstants.BackLeft),
                 new ModuleIOSim(TunerConstants.BackRight));
 
+        vision =
+            new Vision(
+                drive::addVisionMeasurement,
+                new VisionIOPhotonVisionSim("camera_0", robotToCamera0, drive::getPose),
+                new VisionIOPhotonVisionSim("camera_1", robotToCamera1, drive::getPose));
         elevator = new ElevatorSubsystem();
         wrist = new WristSubsystem();
         break;
@@ -120,6 +139,8 @@ public class RobotContainer {
                 new ModuleIO() {},
                 new ModuleIO() {},
                 new ModuleIO() {});
+
+        vision = new Vision(drive::addVisionMeasurement, new VisionIO() {}, new VisionIO() {});
         elevator = null;
         wrist = null;
         break;
@@ -143,7 +164,6 @@ public class RobotContainer {
     } catch (Exception ignored) {
     }
 
-    // Add combined auto: Start-J then J-Station after 1.5s
     Command startJThenJStation = Autos.choreoStartJThenJStation(drive);
     autoChooser.addOption("Start-J -> J-Station (Choreo)", startJThenJStation);
     try {
@@ -226,35 +246,34 @@ public class RobotContainer {
                     drive)
                 .ignoringDisable(true));
 
-    // --- Autopilot: select level standoff (APAC controller), then triggers/Y for alignment ---
-    // APAC button mappings for level selection (press to set):
-    // 8 -> L1, 9 -> L2, 10 -> L3, 11 -> L4
+    // select level standoff and triggers/Y for alignment
+
     new JoystickButton(apacController, 8)
         .onTrue(
             Commands.runOnce(
                 () -> {
-                  autopilotLevel = 1;
+                  ReefLevel.set(1);
                   System.out.println("Autopilot level set to L1 (APAC)");
                 }));
     new JoystickButton(apacController, 9)
         .onTrue(
             Commands.runOnce(
                 () -> {
-                  autopilotLevel = 2;
+                  ReefLevel.set(2);
                   System.out.println("Autopilot level set to L2 (APAC)");
                 }));
     new JoystickButton(apacController, 10)
         .onTrue(
             Commands.runOnce(
                 () -> {
-                  autopilotLevel = 3;
+                  ReefLevel.set(3);
                   System.out.println("Autopilot level set to L3 (APAC)");
                 }));
     new JoystickButton(apacController, 11)
         .onTrue(
             Commands.runOnce(
                 () -> {
-                  autopilotLevel = 4;
+                  ReefLevel.set(4);
                   System.out.println("Autopilot level set to L4 (APAC)");
                 }));
 
@@ -263,22 +282,23 @@ public class RobotContainer {
         .leftBumper()
         .whileTrue(
             DriveCommands.alignToNearestAllianceReefFace(
-                drive, () -> autopilotLevel, PipeSide.LEFT));
+                drive, () -> getSelectedReefLevel(), PipeSide.LEFT));
     controller
         .rightBumper()
         .whileTrue(
             DriveCommands.alignToNearestAllianceReefFace(
-                drive, () -> autopilotLevel, PipeSide.RIGHT));
+                drive, () -> getSelectedReefLevel(), PipeSide.RIGHT));
 
     // Center button: align to center pipe (no lateral offset) at selected level while held
+    //mostly here for testing but we could also make this button do algae intaking from the reef
     controller
         .y()
         .whileTrue(
             DriveCommands.alignToNearestAllianceReefFace(
-                drive, () -> autopilotLevel, PipeSide.CENTER));
+                drive, () -> getSelectedReefLevel(), PipeSide.CENTER));
 
     if (elevator != null && wrist != null) {
-      //   // Button box
+      // the scoring commands are very much AI generated without much (any validation) so keep that in mind
       // Scoring commands trigger once on press and finish when done
       Command l2 = ScoreCommands.scoreL2(drive, elevator, wrist);
       Command l3 = ScoreCommands.scoreL3(drive, elevator, wrist);
@@ -286,7 +306,7 @@ public class RobotContainer {
       new JoystickButton(apacController, 2).onTrue(l2);
       new JoystickButton(apacController, 3).onTrue(l3);
       new JoystickButton(apacController, 4).onTrue(l4);
-      // Dedicated cancel button: cancels any active scoring, then safely reset
+      // Cancel button
       new JoystickButton(apacController, 1)
           .onTrue(
               Commands.runOnce(
@@ -298,11 +318,21 @@ public class RobotContainer {
                   .andThen(
                       Commands.parallel(
                           WristCommands.Stowed(wrist), ElevatorCommands.Down(elevator))));
-      // Other utilities
+      // for testing elevator/wrist
       new JoystickButton(apacController, 5).onTrue(WristCommands.Stowed(wrist));
       new JoystickButton(apacController, 6).onTrue(WristCommands.AlgaeIntake(wrist));
       new JoystickButton(apacController, 7).onTrue(WristCommands.TestWrist(wrist));
+      new JoystickButton(apacController, 12).onTrue(ElevatorCommands.Down(elevator));
+      new JoystickButton(apacController, 13).onTrue(ElevatorCommands.L3Score(elevator));
     }
+  }
+
+  private int getSelectedReefLevel() {
+    // Round and clamp to valid levels [1,4]
+    int lvl = (int) Math.round(ReefLevel.get());
+    if (lvl < 1) return 1;
+    if (lvl > 4) return 4;
+    return lvl;
   }
 
   /**
@@ -321,7 +351,7 @@ public class RobotContainer {
         : autoStartingPosesRed.get(selected);
   }
 
-  /** Returns the manually selected starting pose. */
+  /* Returns the manually selected starting pose. */
   private Pose2d getManualStartingPose() {
     StartPose selected = startPoseChooser.get();
     return FieldConstants.isBlueAlliance()
@@ -329,7 +359,7 @@ public class RobotContainer {
         : manualStartingPosesRed.get(selected);
   }
 
-  /** Applies the manually selected starting pose. */
+  /* Applies the manually selected starting pose. Something about this is not working*/
   public void applyManualStartingPose() {
     Pose2d pose = getManualStartingPose();
     if (pose != null) {
@@ -339,7 +369,7 @@ public class RobotContainer {
 
   /**
    * Applies the starting pose either from the selected autonomous routine or the manual chooser.
-   */
+   I don't know why manual starting pose doesn't work currently*/
   public void applySelectedStartingPose() {
     Pose2d pose = getStartingPoseForSelectedAuto();
     if (pose == null) {

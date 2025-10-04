@@ -300,10 +300,6 @@ public class DriveCommands {
     double gyroDelta = 0.0;
   }
 
-  // ---------------------------------------------------------------------------
-  // Autopilot helpers (nearest reef face, level standoff, optional left/right)
-  // ---------------------------------------------------------------------------
-
   /** Aligns to the nearest alliance-aware reef face center using the given level standoff. */
   public static Command alignToNearestAllianceReefFace(Drive drive, int level) {
     return new DeferredCommand(
@@ -345,82 +341,4 @@ public class DriveCommands {
     return new DeferredCommand(
         () -> alignToNearestAllianceReefFace(drive, levelSupplier.get(), side), Set.of(drive));
   }
-
-  /**
-   * Aligns the robot to a specified reef face center and orientation (alliance-aware).
-   *
-   * <p>Uses the BLUE-reference pose from {@link FieldConstants.Reef#blueFacePose(Branch)} and flips
-   * it for RED based on field length, so it works on either side. The entry angle is set to the
-   * face normal to approach along the face axis.
-   */
-  // public static Command alignToBlueReefFace(Drive drive, Branch branch) {
-  //   Pose2d blueFace = FieldConstants.Reef.blueFacePose(branch);
-
-  //   // Face toward the reef (inward: normal + 180°) in BLUE frame, then flip for RED
-  //   Pose2d blueInward = new Pose2d(blueFace.getTranslation(), blueFace.getRotation());
-
-  //   Pose2d allianceTarget = allianceAwarePose(blueInward);
-
-  //   APTarget target =
-  //       new APTarget(allianceTarget)
-  //           .withEntryAngle(allianceTarget.getRotation())
-  //           .withRotationRadius(Meters.of(0.0));
-  //   return drive.align(target);
-  // }
-
-  // /** Aligns to the nearest reef face (alliance-aware) based on the robot's current pose. */
-  // public static Command alignToNearestBlueReefFace(Drive drive) {
-  //   // Defer branch selection until the command is scheduled so it's not frozen at init time
-  //   return new DeferredCommand(
-  //       () -> {
-  //         Branch nearest = FieldConstants.Reef.nearestBranch(drive.getPose());
-  //         return alignToBlueReefFace(drive, nearest);
-  //       },
-  //       Set.of(drive));
-  // }
-
-  // public static Command alignToNearestAllianceReefFace(Drive drive, int level) {
-  //   // Defer branch selection until scheduled to reflect current pose
-  //   return new DeferredCommand(
-  //       () -> {
-  //         Branch nearest = FieldConstants.Reef.nearestBranch(drive.getPose());
-  //         return alignToAllianceReefFace(drive, nearest, level);
-  //       },
-  //       Set.of(drive));
-  // }
-
-  // /** Aligns to the nearest reef face, targeting the selected pipe side. */
-  // public static Command alignToNearestAllianceReefFace(Drive drive, int level, PipeSide side) {
-  //   return new DeferredCommand(
-  //       () -> {
-  //         Branch nearest = FieldConstants.Reef.nearestBranch(drive.getPose());
-  //         return alignToAllianceReefFace(drive, nearest, level, side);
-  //       },
-  //       Set.of(drive));
-  // }
-
-  // private static Command alignToAllianceReefFace(Drive drive, Branch nearest, int level) {
-  //   Pose2d target = FieldConstants.Reef.scoringPose(nearest, level);
-  //   APTarget apTarget = new APTarget(target).withEntryAngle(target.getRotation());
-  //   return drive.align(apTarget);
-  // }
-
-  // private static Command alignToAllianceReefFace(
-  //   Drive drive, Branch nearest, int level, PipeSide side) {
-  //   Pose2d target = FieldConstants.Reef.scoringPose(nearest, level, side);
-  //   APTarget apTarget = new APTarget(target).withEntryAngle(target.getRotation());
-  //   return drive.align(apTarget);
-  // }
-
-  // --- Helpers ---
-  // private static Pose2d allianceAwarePose(Pose2d bluePose) {
-  //   boolean isRed =
-  //       DriverStation.getAlliance().isPresent()
-  //           && DriverStation.getAlliance().get() == Alliance.Red;
-  //   if (!isRed) return bluePose;
-  //   // Mirror across field X-length centerline and reflect heading (theta' = pi - theta)
-  //   double flippedX = FieldConstants.FIELD_LENGTH - bluePose.getX();
-  //   return new Pose2d(
-  //       flippedX, bluePose.getY(), new Rotation2d(Math.PI).minus(bluePose.getRotation()));
-  // }
 }

@@ -18,8 +18,8 @@ public class ElevatorCommands {
     return elevator.setHeight(SubsystemConstants.ElevatorPosition.Down.distance());
   }
 
-  public static Command L2Score(ElevatorSubsystem elevator) {
-    return elevator.setHeight(SubsystemConstants.ElevatorPosition.L2.distance());
+  public static Command L3Score(ElevatorSubsystem elevator) {
+    return elevator.setHeight(SubsystemConstants.ElevatorPosition.L3.distance());
   }
 
   public static Command L4Score(ElevatorSubsystem elevator) {

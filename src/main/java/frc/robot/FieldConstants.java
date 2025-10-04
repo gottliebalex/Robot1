@@ -332,14 +332,6 @@ public class FieldConstants {
       Rotation2d rot = Rotation2d.fromRadians(Math.PI).minus(bluePose.getRotation());
       return new Pose2d(x, y, rot);
     }
-    // Convenience Units helper (so kFieldLength can be stored in meters or feet—your call)
-    private static double meters(double value) {
-      return value;
-    }
-
-    private static double metersToFeet(double meters) {
-      return meters;
-    } // keep in meters if you already are
   }
 
   // April tag IDs
