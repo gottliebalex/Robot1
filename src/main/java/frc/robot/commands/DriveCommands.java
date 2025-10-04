@@ -300,7 +300,7 @@ public class DriveCommands {
     double gyroDelta = 0.0;
   }
 
-  /** Aligns to the nearest alliance-aware reef face center using the given level standoff. */
+  /* Aligns to the nearest alliance-aware reef face center using the given level standoff. */
   public static Command alignToNearestAllianceReefFace(Drive drive, int level) {
     return new DeferredCommand(
         () -> {
@@ -314,7 +314,7 @@ public class DriveCommands {
         Set.of(drive));
   }
 
-  /** Aligns to the nearest alliance-aware reef face center using the supplied level standoff. */
+  /* Aligns to the nearest alliance-aware reef face center using the supplied level standoff. */
   public static Command alignToNearestAllianceReefFace(
       Drive drive, java.util.function.Supplier<Integer> levelSupplier) {
     return new DeferredCommand(
@@ -335,7 +335,7 @@ public class DriveCommands {
         Set.of(drive));
   }
 
-  /** Aligns to the nearest reef face pipe side using a supplied level. */
+  /* Aligns to the nearest reef face pipe side using a supplied level. */
   public static Command alignToNearestAllianceReefFace(
       Drive drive, java.util.function.Supplier<Integer> levelSupplier, PipeSide side) {
     return new DeferredCommand(

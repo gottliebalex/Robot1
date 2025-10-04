@@ -21,26 +21,32 @@ public final class ScoreCommands {
   public static Command scoreReefLevel(
       Drive drive, ElevatorSubsystem elevator, WristSubsystem wrist, int level) {
     // Map level -> elevator height + wrist angle
-    var elevatorCmd =
+    var elevatorTarget =
         switch (level) {
-          case 2 -> elevator.setHeight(SubsystemConstants.ElevatorPosition.L2.distance());
-          case 3 -> elevator.setHeight(SubsystemConstants.ElevatorPosition.L3.distance());
-          case 4 -> elevator.setHeight(SubsystemConstants.ElevatorPosition.L4.distance());
-          default -> elevator.setHeight(SubsystemConstants.ElevatorPosition.Down.distance());
+          case 2 -> SubsystemConstants.ElevatorPosition.L2.distance();
+          case 3 -> SubsystemConstants.ElevatorPosition.L3.distance();
+          case 4 -> SubsystemConstants.ElevatorPosition.L4.distance();
+          default -> SubsystemConstants.ElevatorPosition.Down.distance();
         };
 
-    var wristCmd =
+    var wristTarget =
         switch (level) {
-          case 2 -> wrist.setAngle(SubsystemConstants.WristPosition.L2Score.angle());
-          case 3 -> wrist.setAngle(SubsystemConstants.WristPosition.L3Score.angle());
-          case 4 -> wrist.setAngle(SubsystemConstants.WristPosition.L4Score.angle());
-          default -> wrist.setAngle(SubsystemConstants.WristPosition.Stowed.angle());
+          case 2 -> SubsystemConstants.WristPosition.L2Score.angle();
+          case 3 -> SubsystemConstants.WristPosition.L3Score.angle();
+          case 4 -> SubsystemConstants.WristPosition.L4Score.angle();
+          default -> SubsystemConstants.WristPosition.Stowed.angle();
         };
 
     Command alignCmd = DriveCommands.alignToNearestAllianceReefFace(drive, level);
 
     // Run alignment + mechanisms together, finish when all reach target
-    Command reachTargets = Commands.parallel(alignCmd, elevatorCmd, wristCmd);
+    Command reachTargets =
+        Commands.parallel(
+            alignCmd,
+            // Keep commanding the setpoint until the wait completes
+            Commands.deadline(
+                elevator.waitUntilAtHeight(elevatorTarget), elevator.setHeight(elevatorTarget)),
+            Commands.deadline(wrist.waitUntilAtAngle(wristTarget), wrist.setAngle(wristTarget)));
 
     // Simulate scoring, then stow + lower
     Command postScore =
@@ -48,35 +54,44 @@ public final class ScoreCommands {
             Commands.waitSeconds(0.50),
             Commands.parallel(
                 frc.robot.commands.WristCommands.Stowed(wrist),
-                frc.robot.commands.ElevatorCommands.Down(elevator)));
+                // Ensure elevator actually reaches the down height before finishing
+                Commands.deadline(
+                    elevator.waitUntilAtHeight(SubsystemConstants.ElevatorPosition.Down.distance()),
+                    frc.robot.commands.ElevatorCommands.Down(elevator))));
 
     return Commands.sequence(reachTargets, postScore).withName("Score L" + level);
+    
   }
 
   /** Score at a reef level targeting a specific pipe side (left/right). */
   public static Command scoreReefLevel(
       Drive drive, ElevatorSubsystem elevator, WristSubsystem wrist, int level, PipeSide side) {
     // Map level -> elevator height + wrist angle
-    var elevatorCmd =
+    var elevatorTarget =
         switch (level) {
-          case 2 -> elevator.setHeight(SubsystemConstants.ElevatorPosition.L2.distance());
-          case 3 -> elevator.setHeight(SubsystemConstants.ElevatorPosition.L3.distance());
-          case 4 -> elevator.setHeight(SubsystemConstants.ElevatorPosition.L4.distance());
-          default -> elevator.setHeight(SubsystemConstants.ElevatorPosition.Down.distance());
+          case 2 -> SubsystemConstants.ElevatorPosition.L2.distance();
+          case 3 -> SubsystemConstants.ElevatorPosition.L3.distance();
+          case 4 -> SubsystemConstants.ElevatorPosition.L4.distance();
+          default -> SubsystemConstants.ElevatorPosition.Down.distance();
         };
 
-    var wristCmd =
+    var wristTarget =
         switch (level) {
-          case 2 -> wrist.setAngle(SubsystemConstants.WristPosition.L2Score.angle());
-          case 3 -> wrist.setAngle(SubsystemConstants.WristPosition.L3Score.angle());
-          case 4 -> wrist.setAngle(SubsystemConstants.WristPosition.L4Score.angle());
-          default -> wrist.setAngle(SubsystemConstants.WristPosition.Stowed.angle());
+          case 2 -> SubsystemConstants.WristPosition.L2Score.angle();
+          case 3 -> SubsystemConstants.WristPosition.L3Score.angle();
+          case 4 -> SubsystemConstants.WristPosition.L4Score.angle();
+          default -> SubsystemConstants.WristPosition.Stowed.angle();
         };
 
     Command alignCmd = DriveCommands.alignToNearestAllianceReefFace(drive, level, side);
 
     // Run alignment + mechanisms together, finish when all reach target
-    Command reachTargets = Commands.parallel(alignCmd, elevatorCmd, wristCmd);
+    Command reachTargets =
+        Commands.parallel(
+            alignCmd,
+            Commands.deadline(
+                elevator.waitUntilAtHeight(elevatorTarget), elevator.setHeight(elevatorTarget)),
+            Commands.deadline(wrist.waitUntilAtAngle(wristTarget), wrist.setAngle(wristTarget)));
 
     // Simulate scoring, then stow + lower
     Command postScore =
@@ -84,7 +99,9 @@ public final class ScoreCommands {
             Commands.waitSeconds(0.50),
             Commands.parallel(
                 frc.robot.commands.WristCommands.Stowed(wrist),
-                frc.robot.commands.ElevatorCommands.Down(elevator)));
+                Commands.deadline(
+                    elevator.waitUntilAtHeight(SubsystemConstants.ElevatorPosition.Down.distance()),
+                    frc.robot.commands.ElevatorCommands.Down(elevator))));
 
     return Commands.sequence(reachTargets, postScore)
         .withName("Score L" + level + " (" + side + ")");

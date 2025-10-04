@@ -28,7 +28,6 @@ public final class Autos {
     }
   }
 
-  /** Creates a command that runs Start-J, waits 1.5s, then runs J-Station. */
   public static Command choreoStartJThenJStation(Drive drive) {
     try {
       PathPlannerPath startJ = PathPlannerPath.fromChoreoTrajectory("Start-J");

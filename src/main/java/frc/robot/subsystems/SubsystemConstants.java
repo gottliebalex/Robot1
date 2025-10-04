@@ -37,11 +37,11 @@ public class SubsystemConstants {
 
   public static enum WristPosition {
     Stowed(Degrees.of(0)),
-    AlgaeGroundIntake(Degrees.of(150)),
+    AlgaeGroundIntake(Degrees.of(-150)),
     L1Score(Degrees.of(-120)),
-    L2Score(Degrees.of(140)),
-    L3Score(Degrees.of(140)),
-    L4Score(Degrees.of(120)),
+    L2Score(Degrees.of(-140)),
+    L3Score(Degrees.of(-140)),
+    L4Score(Degrees.of(-120)),
     Test(Degrees.of(-180));
 
     private final Angle angle;

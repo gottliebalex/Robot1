@@ -35,6 +35,7 @@ import frc.robot.commands.ElevatorCommands;
 import frc.robot.commands.ScoreCommands;
 import frc.robot.commands.WristCommands;
 import frc.robot.generated.TunerConstants;
+import frc.robot.subsystems.SubsystemConstants;
 import frc.robot.subsystems.drive.Drive;
 import frc.robot.subsystems.drive.GyroIO;
 import frc.robot.subsystems.drive.GyroIOPigeon2;
@@ -78,6 +79,8 @@ public class RobotContainer {
   private final Map<StartPose, Pose2d> manualStartingPosesRed = new HashMap<>();
   private final LoggedNetworkNumber ReefLevel = // auto align level selection
       new LoggedNetworkNumber("Autopilot/ReefLevel", 4);
+  // Selected pipe side for scoring (set by driver triggers/Y)
+  private PipeSide selectedPipeSide = PipeSide.CENTER;
 
   /** Manual starting pose options. */
   public enum StartPose {
@@ -222,6 +225,15 @@ public class RobotContainer {
             () -> -controller.getLeftX(),
             () -> -controller.getRightX()));
 
+    // Default wrist hold at 0 degrees (stowed)
+    if (wrist != null) {
+      wrist.setDefaultCommand(
+          Commands.sequence(
+                  wrist.setAngle(SubsystemConstants.WristPosition.Stowed.angle()),
+                  Commands.run(() -> {}, wrist))
+              .withName("Wrist Hold 0deg"));
+    }
+
     // Lock to 0° when A button is held
     controller
         .a()
@@ -277,20 +289,22 @@ public class RobotContainer {
                   System.out.println("Autopilot level set to L4 (APAC)");
                 }));
 
-    // Left/Right bumpers: align to nearest face LEFT/RIGHT pipe at selected level while held
+    // Left/Right triggers: choose LEFT/RIGHT pipe side and align while held
+    controller.leftTrigger().onTrue(Commands.runOnce(() -> selectedPipeSide = PipeSide.LEFT));
     controller
-        .leftBumper()
+        .leftTrigger()
         .whileTrue(
             DriveCommands.alignToNearestAllianceReefFace(
                 drive, () -> getSelectedReefLevel(), PipeSide.LEFT));
+    controller.rightTrigger().onTrue(Commands.runOnce(() -> selectedPipeSide = PipeSide.RIGHT));
     controller
-        .rightBumper()
+        .rightTrigger()
         .whileTrue(
             DriveCommands.alignToNearestAllianceReefFace(
                 drive, () -> getSelectedReefLevel(), PipeSide.RIGHT));
 
-    // Center button: align to center pipe (no lateral offset) at selected level while held
-    //mostly here for testing but we could also make this button do algae intaking from the reef
+    // Y button: choose CENTER pipe and align while held
+    controller.y().onTrue(Commands.runOnce(() -> selectedPipeSide = PipeSide.CENTER));
     controller
         .y()
         .whileTrue(
@@ -298,23 +312,52 @@ public class RobotContainer {
                 drive, () -> getSelectedReefLevel(), PipeSide.CENTER));
 
     if (elevator != null && wrist != null) {
-      // the scoring commands are very much AI generated without much (any validation) so keep that in mind
-      // Scoring commands trigger once on press and finish when done
-      Command l2 = ScoreCommands.scoreL2(drive, elevator, wrist);
-      Command l3 = ScoreCommands.scoreL3(drive, elevator, wrist);
-      Command l4 = ScoreCommands.scoreL4(drive, elevator, wrist);
-      new JoystickButton(apacController, 2).onTrue(l2);
-      new JoystickButton(apacController, 3).onTrue(l3);
-      new JoystickButton(apacController, 4).onTrue(l4);
-      // Cancel button
-      new JoystickButton(apacController, 1)
+      // Left/Right bumpers: run scoring on LEFT/RIGHT pipe at selected level
+      controller
+          .leftBumper()
           .onTrue(
-              Commands.runOnce(
-                      () -> {
-                        CommandScheduler.getInstance().cancel(l2);
-                        CommandScheduler.getInstance().cancel(l3);
-                        CommandScheduler.getInstance().cancel(l4);
-                      })
+              Commands.defer(
+                  () -> {
+                    int lvl = getSelectedReefLevel();
+                    if (lvl < 2) lvl = 2;
+                    if (lvl > 4) lvl = 4;
+                    return ScoreCommands.scoreReefLevel(drive, elevator, wrist, lvl, PipeSide.LEFT);
+                  },
+                  java.util.Set.of(drive, elevator, wrist)));
+      controller
+          .rightBumper()
+          .onTrue(
+              Commands.defer(
+                  () -> {
+                    int lvl = getSelectedReefLevel();
+                    if (lvl < 2) lvl = 2;
+                    if (lvl > 4) lvl = 4;
+                    return ScoreCommands.scoreReefLevel(
+                        drive, elevator, wrist, lvl, PipeSide.RIGHT);
+                  },
+                  java.util.Set.of(drive, elevator, wrist)));
+      // Scoring: select level with APAC (8-11), select side with triggers (LT/RT or Y),
+      // then press any level button (2/3/4) to run the score sequence for the current selection.
+      // Command dynamicScore =
+      //     Commands.defer(
+      //         () -> {
+      //           int lvl = getSelectedReefLevel();
+      //           // ScoreCommands supports L2-L4; clamp here to avoid L1 mis-selection
+      //           if (lvl < 2) lvl = 2;
+      //           if (lvl > 4) lvl = 4;
+      //           return ScoreCommands.scoreReefLevel(drive, elevator, wrist, lvl,
+      // selectedPipeSide);
+      //         },
+      //         java.util.Set.of(drive, elevator, wrist));
+      // new JoystickButton(apacController, 2).onTrue(dynamicScore);
+      // new JoystickButton(apacController, 3).onTrue(dynamicScore);
+      // new JoystickButton(apacController, 4).onTrue(dynamicScore);
+      // Cancel button
+
+      controller
+          .povDown()
+          .onTrue(
+              Commands.runOnce(CommandScheduler.getInstance()::cancelAll)
                   .andThen(
                       Commands.parallel(
                           WristCommands.Stowed(wrist), ElevatorCommands.Down(elevator))));
@@ -368,8 +411,9 @@ public class RobotContainer {
   }
 
   /**
-   * Applies the starting pose either from the selected autonomous routine or the manual chooser.
-   I don't know why manual starting pose doesn't work currently*/
+   * Applies the starting pose either from the selected autonomous routine or the manual chooser. I
+   * don't know why manual starting pose doesn't work currently
+   */
   public void applySelectedStartingPose() {
     Pose2d pose = getStartingPoseForSelectedAuto();
     if (pose == null) {

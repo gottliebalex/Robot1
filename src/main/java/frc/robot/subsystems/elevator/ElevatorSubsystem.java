@@ -64,7 +64,6 @@ public class ElevatorSubsystem extends SubsystemBase {
           .withControlMode(ControlMode.CLOSED_LOOP)
           .withFollowers(Pair.of(elevatorFollower, true))
           .withStartingPosition(Inches.of(0))
-      // .withClosedLoopTolerance(Inches.of(0.25))
       // .withClosedLoopControlPeriod(Milliseconds.of(1))
       ;
 
@@ -109,6 +108,15 @@ public class ElevatorSubsystem extends SubsystemBase {
 
   public Distance getHeight() {
     return m_elevator.getHeight();
+  }
+
+  public boolean atHeight(Distance target) {
+    return Math.abs(getHeight().in(Meters) - target.in(Meters))
+        <= SubsystemConstants.ELEVATOR_TOLERANCE.in(Meters);
+  }
+
+  public Command waitUntilAtHeight(Distance target) {
+    return edu.wpi.first.wpilibj2.command.Commands.waitUntil(() -> atHeight(target));
   }
 
   public Command sysId() {

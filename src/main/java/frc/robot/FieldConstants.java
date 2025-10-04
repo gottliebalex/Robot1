@@ -117,7 +117,7 @@ public class FieldConstants {
     public static final double STANDOFF_L4 = 0.65;
 
     static {
-      // Define a hexagon around +X and go clockwise every 60°
+      // Define hexagon around +X and go clockwise every 60°
       Rotation2d[] normals = {
         Rotation2d.fromDegrees(0), // A
         Rotation2d.fromDegrees(-60), // B
@@ -228,17 +228,15 @@ public class FieldConstants {
               blue.getTranslation().plus(offset),
               blue.getRotation().plus(Rotation2d.fromDegrees(180)));
 
-      // Flip for RED if needed
+      // Flip for RED
       Alliance alliance = DriverStation.getAlliance().orElse(Alliance.Blue);
       return alliance == Alliance.Red ? allianceFlip(blueWithOffsetInward) : blueWithOffsetInward;
-      // If you have AllianceFlipUtil.apply(blueWithOffsetInward), use that instead of
-      // allianceFlip(...)
+      // we should look into using alliancefliputil
     }
-
-    /**
-     * Scoring pose offset to the selected pipe side (left/right) relative to the face center. The
-     * offset is applied in the BLUE frame and then alliance-flipped if needed.
-     */
+    /*
+    Scoring pose offset to the selected pipe side (left/right) relative to the face center. The
+    offset is applied in the BLUE frame and then alliance-flipped if needed.
+    */
     public static Pose2d scoringPose(Branch branch, int level, PipeSide side) {
       if (CURRENT_SCORING_SIDE != null) {
         Level lvl = Level.fromInt(level);
@@ -279,9 +277,7 @@ public class FieldConstants {
       return alliance == Alliance.Red ? allianceFlip(blueTarget) : blueTarget;
     }
 
-    /**
-     * Finds the nearest reef branch (by face center) to a given field pose for convenience
-     * targeting.
+    /*Finds the nearest reef branch (by face center) to a given field pose
      */
     public static Branch nearestBranch(Pose2d robotPose) {
       if (CURRENT_FACE_POSES != null) {
@@ -316,7 +312,8 @@ public class FieldConstants {
       return best;
     }
 
-    /** Updates current cached maps when alliance changes. */
+    /* Updates current cached maps when alliance changes
+    (I don't see when that would happen but why not put it in.). */
     static void onAllianceUpdated(Alliance alliance) {
       boolean isRed = alliance == Alliance.Red;
       CURRENT_FACE_POSES = isRed ? FACE_POSES_RED : FACE_POSES_BLUE;
