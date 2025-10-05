@@ -231,7 +231,13 @@ public class RobotContainer {
           Commands.sequence(
                   wrist.setAngle(SubsystemConstants.WristPosition.Stowed.angle()),
                   Commands.run(() -> {}, wrist))
-              .withName("Wrist Hold 0deg"));
+              .withName("Wrist Default Command (0 deg)"));
+
+      elevator.setDefaultCommand(
+          Commands.sequence(
+                  elevator.setHeight(SubsystemConstants.ElevatorPosition.Down.distance()),
+                  Commands.run(() -> {}, elevator))
+              .withName("Elevator Default Command"));
     }
 
     // Lock to 0° when A button is held

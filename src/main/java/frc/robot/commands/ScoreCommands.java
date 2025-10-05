@@ -37,6 +37,9 @@ public final class ScoreCommands {
           default -> SubsystemConstants.WristPosition.Stowed.angle();
         };
 
+    var stowElevator = SubsystemConstants.ElevatorPosition.Down.distance();
+    var stowWrist = SubsystemConstants.WristPosition.Stowed.angle();
+
     Command alignCmd = DriveCommands.alignToNearestAllianceReefFace(drive, level);
 
     // Run alignment + mechanisms together, finish when all reach target
@@ -53,14 +56,12 @@ public final class ScoreCommands {
         Commands.sequence(
             Commands.waitSeconds(0.50),
             Commands.parallel(
-                frc.robot.commands.WristCommands.Stowed(wrist),
-                // Ensure elevator actually reaches the down height before finishing
+                Commands.deadline(elevator.waitUntilAtHeight(stowElevator)).withTimeout(1),
+                elevator.setHeight(stowElevator),
                 Commands.deadline(
-                    elevator.waitUntilAtHeight(SubsystemConstants.ElevatorPosition.Down.distance()),
-                    frc.robot.commands.ElevatorCommands.Down(elevator))));
+                    wrist.waitUntilAtAngle(stowWrist).withTimeout(1), wrist.setAngle(stowWrist))));
 
     return Commands.sequence(reachTargets, postScore).withName("Score L" + level);
-    
   }
 
   /** Score at a reef level targeting a specific pipe side (left/right). */
@@ -83,6 +84,9 @@ public final class ScoreCommands {
           default -> SubsystemConstants.WristPosition.Stowed.angle();
         };
 
+    var stowElevator = SubsystemConstants.ElevatorPosition.Down.distance();
+    var stowWrist = SubsystemConstants.WristPosition.Stowed.angle();
+
     Command alignCmd = DriveCommands.alignToNearestAllianceReefFace(drive, level, side);
 
     // Run alignment + mechanisms together, finish when all reach target
@@ -97,11 +101,19 @@ public final class ScoreCommands {
     Command postScore =
         Commands.sequence(
             Commands.waitSeconds(0.50),
-            Commands.parallel(
-                frc.robot.commands.WristCommands.Stowed(wrist),
-                Commands.deadline(
-                    elevator.waitUntilAtHeight(SubsystemConstants.ElevatorPosition.Down.distance()),
-                    frc.robot.commands.ElevatorCommands.Down(elevator))));
+            Commands.deadline(
+                Commands.waitUntil(
+                    () -> elevator.atHeight(stowElevator) && wrist.atAngle(stowWrist)),
+                elevator.setHeight(stowElevator),
+                wrist.setAngle(stowWrist))
+            // .withTimeout(1)
+            );
+    // Commands.parallel(
+    //     Commands.deadline(elevator.waitUntilAtHeight(stowElevator)),
+    //     elevator.setHeight(stowElevator),
+    //     Commands.deadline(
+    //         wrist.waitUntilAtAngle(stowWrist), wrist.setAngle(stowWrist))).withTimeout(2)
+    //         );
 
     return Commands.sequence(reachTargets, postScore)
         .withName("Score L" + level + " (" + side + ")");
