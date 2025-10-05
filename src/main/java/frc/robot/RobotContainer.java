@@ -32,9 +32,11 @@ import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine;
 import frc.robot.FieldConstants.Reef.PipeSide;
 import frc.robot.commands.DriveCommands;
 import frc.robot.commands.ElevatorCommands;
+import frc.robot.commands.IntakeCommands;
 import frc.robot.commands.ScoreCommands;
 import frc.robot.commands.WristCommands;
 import frc.robot.generated.TunerConstants;
+import frc.robot.sensors.CoralSensor;
 import frc.robot.subsystems.SubsystemConstants;
 import frc.robot.subsystems.drive.Drive;
 import frc.robot.subsystems.drive.GyroIO;
@@ -43,6 +45,8 @@ import frc.robot.subsystems.drive.ModuleIO;
 import frc.robot.subsystems.drive.ModuleIOSim;
 import frc.robot.subsystems.drive.ModuleIOTalonFX;
 import frc.robot.subsystems.elevator.ElevatorSubsystem;
+import frc.robot.subsystems.endeffector.EndEffectorSubsystem;
+import frc.robot.subsystems.intake.CoralIntakeSubsystem;
 import frc.robot.subsystems.vision.Vision;
 import frc.robot.subsystems.vision.VisionIO;
 import frc.robot.subsystems.vision.VisionIOPhotonVision;
@@ -65,6 +69,9 @@ public class RobotContainer {
   private final Vision vision;
   private final ElevatorSubsystem elevator;
   private final WristSubsystem wrist;
+  private final CoralIntakeSubsystem coralIntake;
+  private final EndEffectorSubsystem endEffector;
+  private final CoralSensor coralSensor;
 
   // Controller
   private final CommandXboxController controller = new CommandXboxController(0);
@@ -112,6 +119,9 @@ public class RobotContainer {
 
         elevator = new ElevatorSubsystem();
         wrist = new WristSubsystem();
+        coralIntake = new CoralIntakeSubsystem();
+        endEffector = new EndEffectorSubsystem();
+        coralSensor = new CoralSensor(SubsystemConstants.CANANDCOLOR_ID);
         break;
 
       case SIM:
@@ -131,6 +141,9 @@ public class RobotContainer {
                 new VisionIOPhotonVisionSim("camera_1", robotToCamera1, drive::getPose));
         elevator = new ElevatorSubsystem();
         wrist = new WristSubsystem();
+        coralIntake = new CoralIntakeSubsystem();
+        endEffector = new EndEffectorSubsystem();
+        coralSensor = new CoralSensor(SubsystemConstants.CANANDCOLOR_ID);
         break;
 
       default:
@@ -146,6 +159,9 @@ public class RobotContainer {
         vision = new Vision(drive::addVisionMeasurement, new VisionIO() {}, new VisionIO() {});
         elevator = null;
         wrist = null;
+        coralIntake = null;
+        endEffector = null;
+        coralSensor = new CoralSensor();
         break;
     }
 
@@ -373,6 +389,24 @@ public class RobotContainer {
       new JoystickButton(apacController, 7).onTrue(WristCommands.TestWrist(wrist));
       new JoystickButton(apacController, 12).onTrue(ElevatorCommands.Down(elevator));
       new JoystickButton(apacController, 13).onTrue(ElevatorCommands.L3Score(elevator));
+
+      // Coral intake sequence and simulation helper
+      if (coralIntake != null && endEffector != null) {
+        new JoystickButton(apacController, 1)
+            .toggleOnTrue(
+                IntakeCommands.intakeCoral(
+                        coralIntake,
+                        endEffector,
+                        elevator,
+                        coralSensor,
+                        SubsystemConstants.DEFAULT_CORAL_INTAKE_SPEED,
+                        SubsystemConstants.DEFAULT_END_EFFECTOR_SPEED)
+                    .withName("Intake Coral"));
+
+        // Simulate sensor trip (toggles SmartDashboard Sim/CoralDetected briefly)
+        new JoystickButton(apacController, 2)
+            .onTrue(IntakeCommands.simulateCoralDetectionPulse(coralSensor));
+      }
     }
   }
 

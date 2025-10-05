@@ -11,6 +11,20 @@ public class SubsystemConstants {
   public static final int ElevatorLEADER_ID = 15;
   public static final int ElevatorFOLLOWER_ID = 14;
   public static final int Wrist_ID = 18;
+  // New mechanisms
+  // TODO: Update these CAN IDs to match your wiring
+  public static final int CoralIntake_ID = 21; // CTRE Minion on Talon FXS
+  public static final int EndEffector_ID = 20; // Kraken X60 on Talon FX
+  public static final int CANANDCOLOR_ID = 22; // Redux Phosphorus CANandcolor sensor
+
+  // Default speeds for intake sequence (percent output, [-1, 1])
+  public static final double DEFAULT_CORAL_INTAKE_SPEED = 0.5;
+  public static final double DEFAULT_END_EFFECTOR_SPEED = 0.4;
+
+  // Coral sensor thresholds/settings
+  // Per Redux docs, proximity increases as objects move away; closer => smaller value
+  public static final double CORAL_SENSOR_PROX_TRIP = 0.20; // trip when proximity <= this
+  public static final double CORAL_SENSOR_PROX_PERIOD_S = 0.02; // 20ms updates
 
   public static enum ElevatorPosition {
     Down(Inches.of(8)),

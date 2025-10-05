@@ -3,6 +3,7 @@ package frc.robot.commands;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import frc.robot.FieldConstants.Reef.PipeSide;
+import frc.robot.GamePiece;
 import frc.robot.subsystems.SubsystemConstants;
 import frc.robot.subsystems.drive.Drive;
 import frc.robot.subsystems.elevator.ElevatorSubsystem;
@@ -61,7 +62,9 @@ public final class ScoreCommands {
                 Commands.deadline(
                     wrist.waitUntilAtAngle(stowWrist).withTimeout(1), wrist.setAngle(stowWrist))));
 
-    return Commands.sequence(reachTargets, postScore).withName("Score L" + level);
+    return Commands.sequence(
+            reachTargets, postScore, Commands.runOnce(() -> GamePiece.setMode(GamePiece.Mode.NONE)))
+        .withName("Score L" + level);
   }
 
   /** Score at a reef level targeting a specific pipe side (left/right). */
@@ -108,14 +111,9 @@ public final class ScoreCommands {
                 wrist.setAngle(stowWrist))
             // .withTimeout(1)
             );
-    // Commands.parallel(
-    //     Commands.deadline(elevator.waitUntilAtHeight(stowElevator)),
-    //     elevator.setHeight(stowElevator),
-    //     Commands.deadline(
-    //         wrist.waitUntilAtAngle(stowWrist), wrist.setAngle(stowWrist))).withTimeout(2)
-    //         );
 
-    return Commands.sequence(reachTargets, postScore)
+    return Commands.sequence(
+            reachTargets, postScore, Commands.runOnce(() -> GamePiece.setMode(GamePiece.Mode.NONE)))
         .withName("Score L" + level + " (" + side + ")");
   }
 
