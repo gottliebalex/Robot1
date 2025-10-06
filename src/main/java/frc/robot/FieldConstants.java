@@ -360,21 +360,21 @@ public class FieldConstants {
   }
 
   public static final Pose2d LEFT_STARTING_POSE_BLUE =
-      new Pose2d(7.067, 6.626, Rotation2d.fromDegrees(180));
+      new Pose2d(7.07, 7, Rotation2d.fromDegrees(0));
   public static final Pose2d LEFT_STARTING_POSE_RED =
       new Pose2d(
           FIELD_LENGTH - LEFT_STARTING_POSE_BLUE.getX(),
           FIELD_HEIGHT - LEFT_STARTING_POSE_BLUE.getY(),
-          Rotation2d.fromDegrees(-180));
+          Rotation2d.fromDegrees(180));
 
   public static final Pose2d RIGHT_STARTING_POSE_BLUE =
       new Pose2d(
           LEFT_STARTING_POSE_BLUE.getX(),
           FIELD_HEIGHT - LEFT_STARTING_POSE_BLUE.getY(),
-          Rotation2d.fromDegrees(-180.0));
+          Rotation2d.fromDegrees(0));
   public static final Pose2d RIGHT_STARTING_POSE_RED =
       new Pose2d(
           FIELD_LENGTH - RIGHT_STARTING_POSE_BLUE.getX(),
           FIELD_HEIGHT - RIGHT_STARTING_POSE_BLUE.getY(),
-          Rotation2d.fromDegrees(180.0));
+          Rotation2d.fromDegrees(180));
 }

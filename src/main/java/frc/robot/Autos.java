@@ -5,7 +5,10 @@ import com.pathplanner.lib.path.PathPlannerPath;
 import com.pathplanner.lib.util.FileVersionException;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
+import frc.robot.commands.ScoreCommands;
 import frc.robot.subsystems.drive.Drive;
+import frc.robot.subsystems.elevator.ElevatorSubsystem;
+import frc.robot.subsystems.wrist.WristSubsystem;
 import java.io.IOException;
 import org.json.simple.parser.ParseException;
 
@@ -28,21 +31,22 @@ public final class Autos {
     }
   }
 
-  public static Command choreoStartJThenJStation(Drive drive) {
+  public static Command choreoStartJThenJStation(
+      Drive drive, ElevatorSubsystem elevator, WristSubsystem wrist) {
     try {
-      PathPlannerPath startJ = PathPlannerPath.fromChoreoTrajectory("Start-J");
+      PathPlannerPath startJoffset = PathPlannerPath.fromChoreoTrajectory("Start-Joffset");
       PathPlannerPath jStation = PathPlannerPath.fromChoreoTrajectory("J-Station");
 
       Command reset =
-          startJ
+          startJoffset
               .getStartingHolonomicPose()
               .<Command>map(AutoBuilder::resetOdom)
               .orElse(Commands.none());
 
       return Commands.sequence(
               reset,
-              AutoBuilder.followPath(startJ),
-              Commands.waitSeconds(1.5),
+              AutoBuilder.followPath(startJoffset),
+              ScoreCommands.scoreL4Right(drive, elevator, wrist),
               AutoBuilder.followPath(jStation))
           .withName("Start-J -> J-Station (Choreo)");
     } catch (IOException | ParseException | FileVersionException e) {

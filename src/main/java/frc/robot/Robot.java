@@ -133,9 +133,9 @@ public class Robot extends LoggedRobot {
   public void autonomousInit() {
     // Refresh alliance cache at mode start
     FieldConstants.refreshAllianceCache();
+    robotContainer.applySelectedStartingPose();
     autonomousCommand = robotContainer.getAutonomousCommand();
-
-    // schedule the autonomous command (example)
+    // schedule the autonomous command
     if (autonomousCommand != null) {
       autonomousCommand.schedule();
     }

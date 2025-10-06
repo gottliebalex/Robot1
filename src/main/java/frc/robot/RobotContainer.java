@@ -183,7 +183,7 @@ public class RobotContainer {
     } catch (Exception ignored) {
     }
 
-    Command startJThenJStation = Autos.choreoStartJThenJStation(drive);
+    Command startJThenJStation = Autos.choreoStartJThenJStation(drive, elevator, wrist);
     autoChooser.addOption("Start-J -> J-Station (Choreo)", startJThenJStation);
     try {
       PathPlannerPath p = PathPlannerPath.fromChoreoTrajectory("Start-J");
