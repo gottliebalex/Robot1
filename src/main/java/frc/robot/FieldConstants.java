@@ -178,7 +178,7 @@ public class FieldConstants {
           // CENTER (same as no-side)
           blueSideMap.put(PipeSide.CENTER, blueNoSide);
           redSideMap.put(PipeSide.CENTER, allianceFlip(blueNoSide));
-          
+
           // LEFT pipe BLUE, LEFT pipe RED
           Translation2d blueleftOffset = new Translation2d(-halfSpacingM, 0).rotateBy(leftDir);
 
