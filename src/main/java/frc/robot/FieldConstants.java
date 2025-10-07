@@ -178,20 +178,35 @@ public class FieldConstants {
           // CENTER (same as no-side)
           blueSideMap.put(PipeSide.CENTER, blueNoSide);
           redSideMap.put(PipeSide.CENTER, allianceFlip(blueNoSide));
+          
+          // LEFT pipe BLUE, LEFT pipe RED
+          Translation2d blueleftOffset = new Translation2d(-halfSpacingM, 0).rotateBy(leftDir);
 
-          // LEFT pipe
-          Translation2d leftOffset = new Translation2d(-halfSpacingM, 0).rotateBy(leftDir);
           Pose2d blueLeft =
-              new Pose2d(blueBase.getTranslation().plus(normalOffset).plus(leftOffset), inward);
+              new Pose2d(blueBase.getTranslation().plus(normalOffset).plus(blueleftOffset), inward);
           blueSideMap.put(PipeSide.LEFT, blueLeft);
-          redSideMap.put(PipeSide.LEFT, allianceFlip(blueLeft));
 
-          // RIGHT pipe
-          Translation2d rightOffset = new Translation2d(+halfSpacingM, 0).rotateBy(leftDir);
+          Pose2d redBase = allianceFlip(blueBase);
+
+          Pose2d redLeft =
+              redBase.plus(
+                  new Transform2d(new Translation2d(standoff, -halfSpacingM), new Rotation2d()));
+
+          redSideMap.put(PipeSide.LEFT, redLeft);
+
+          // RIGHT pipe BLUE, RIGHT pipe RED
+          Translation2d bluerightOffset = new Translation2d(+halfSpacingM, 0).rotateBy(leftDir);
+
           Pose2d blueRight =
-              new Pose2d(blueBase.getTranslation().plus(normalOffset).plus(rightOffset), inward);
+              new Pose2d(
+                  blueBase.getTranslation().plus(normalOffset).plus(bluerightOffset), inward);
           blueSideMap.put(PipeSide.RIGHT, blueRight);
-          redSideMap.put(PipeSide.RIGHT, allianceFlip(blueRight));
+
+          Pose2d redRight =
+              redBase.plus(
+                  new Transform2d(new Translation2d(standoff, +halfSpacingM), new Rotation2d()));
+
+          redSideMap.put(PipeSide.RIGHT, redRight);
 
           SCORING_SIDE_BLUE.get(br).put(lvl, blueSideMap);
           SCORING_SIDE_RED.get(br).put(lvl, redSideMap);
