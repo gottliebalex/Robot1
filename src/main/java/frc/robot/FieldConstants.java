@@ -109,6 +109,13 @@ public class FieldConstants {
     private static Map<Branch, EnumMap<Level, EnumMap<PipeSide, Pose2d>>> CURRENT_SCORING_SIDE =
         SCORING_SIDE_BLUE;
 
+    // Algae placement varies by face but is the same for red/blue.
+    // We store per-face which pipe side contains algae and which level it sits at (L2/L3).
+    public static record AlgaePlacement(Level level, PipeSide side) {}
+
+    private static final EnumMap<Branch, AlgaePlacement> ALGAE_PLACEMENT =
+        new EnumMap<>(Branch.class);
+
     /** Standoff per level, negative moves robot *toward* the reef along the face normal. */
     public static final double STANDOFF_L1 = 0.4;
 
@@ -215,6 +222,16 @@ public class FieldConstants {
 
       // Initialize current views to the cached alliance once
       onAllianceUpdated(FieldConstants.getAllianceCached());
+
+      // Default algae placement per face (can be updated at runtime if desired)
+      // These defaults are placeholders; adjust to match your scouting sheet.
+      // Example: A/B/C have algae on LEFT at L2, D/E/F on RIGHT at L3.
+      ALGAE_PLACEMENT.put(Branch.A, new AlgaePlacement(Level.L2, PipeSide.CENTER));
+      ALGAE_PLACEMENT.put(Branch.B, new AlgaePlacement(Level.L2, PipeSide.CENTER));
+      ALGAE_PLACEMENT.put(Branch.C, new AlgaePlacement(Level.L2, PipeSide.CENTER));
+      ALGAE_PLACEMENT.put(Branch.D, new AlgaePlacement(Level.L3, PipeSide.CENTER));
+      ALGAE_PLACEMENT.put(Branch.E, new AlgaePlacement(Level.L3, PipeSide.CENTER));
+      ALGAE_PLACEMENT.put(Branch.F, new AlgaePlacement(Level.L3, PipeSide.CENTER));
     }
 
     /** Returns the BLUE-reference face-center pose (position + facing) for a branch. */
@@ -247,6 +264,34 @@ public class FieldConstants {
       Alliance alliance = DriverStation.getAlliance().orElse(Alliance.Blue);
       return alliance == Alliance.Red ? allianceFlip(blueWithOffsetInward) : blueWithOffsetInward;
       // we should look into using alliancefliputil
+    }
+
+    /** Returns the algae placement (level + side) for a given face. */
+    public static AlgaePlacement getAlgaePlacement(Branch branch) {
+      return ALGAE_PLACEMENT.get(branch);
+    }
+
+    /** Updates the algae placement (level + side) for a given face. */
+    public static void setAlgaePlacement(Branch branch, AlgaePlacement placement) {
+      ALGAE_PLACEMENT.put(branch, placement);
+    }
+
+    /** Returns the alliance-aware target pose to intake algae for a given face. */
+    public static Pose2d algaePose(Branch branch) {
+      AlgaePlacement p = getAlgaePlacement(branch);
+      if (p == null) {
+        // Fallback to the center/no-side pose at L2 if not configured
+        return scoringPose(branch, 2);
+      }
+      return scoringPose(
+          branch,
+          switch (p.level) {
+            case L1 -> 1;
+            case L2 -> 2;
+            case L3 -> 3;
+            case L4 -> 4;
+          },
+          p.side);
     }
     /*
     Scoring pose offset to the selected pipe side (left/right) relative to the face center. The

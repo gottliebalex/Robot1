@@ -15,6 +15,7 @@ package frc.robot.commands;
 
 import com.therekrab.autopilot.APTarget;
 import edu.wpi.first.math.MathUtil;
+import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.controller.ProfiledPIDController;
 import edu.wpi.first.math.filter.SlewRateLimiter;
 import edu.wpi.first.math.geometry.Pose2d;
@@ -67,6 +68,93 @@ public class DriveCommands {
     return new Pose2d(new Translation2d(), linearDirection)
         .transformBy(new Transform2d(linearMagnitude, 0.0, new Rotation2d()))
         .getTranslation();
+  }
+
+  /** Simple PID drive to a field pose (X, Y, Theta), field-relative. */
+  public static Command driveToPose(Drive drive, Pose2d targetPose) {
+    // Linear PID for X/Y in field frame
+    final double LIN_KP = 3.0; // m->(m/s) gain
+    final double LIN_KD = 0.0;
+    final PIDController xController = new PIDController(LIN_KP, 0.0, LIN_KD);
+    final PIDController yController = new PIDController(LIN_KP, 0.0, LIN_KD);
+    xController.setTolerance(0.04);
+    yController.setTolerance(0.04);
+
+    // Angular profiled PID for theta
+    final ProfiledPIDController thetaController =
+        new ProfiledPIDController(
+            ANGLE_KP,
+            0.0,
+            ANGLE_KD,
+            new TrapezoidProfile.Constraints(ANGLE_MAX_VELOCITY, ANGLE_MAX_ACCELERATION));
+    thetaController.enableContinuousInput(-Math.PI, Math.PI);
+    thetaController.setTolerance(Math.toRadians(2.0));
+
+    return Commands.run(
+            () -> {
+              Pose2d pose = drive.getPose();
+
+              // Set setpoints each loop (target fixed)
+              xController.setSetpoint(targetPose.getX());
+              yController.setSetpoint(targetPose.getY());
+              thetaController.setGoal(targetPose.getRotation().getRadians());
+
+              // Calculate field-relative velocities
+              double vxField = xController.calculate(pose.getX());
+              double vyField = yController.calculate(pose.getY());
+              double omega = thetaController.calculate(pose.getRotation().getRadians());
+
+              // Clamp to robot capabilities
+              double maxV = drive.getMaxLinearSpeedMetersPerSec();
+              double maxOmega = drive.getMaxAngularSpeedRadPerSec();
+              vxField = MathUtil.clamp(vxField, -maxV, maxV);
+              vyField = MathUtil.clamp(vyField, -maxV, maxV);
+              omega = MathUtil.clamp(omega, -maxOmega, maxOmega);
+
+              // Convert field-relative to robot-relative with current heading
+              ChassisSpeeds speeds =
+                  ChassisSpeeds.fromFieldRelativeSpeeds(
+                      vxField, vyField, omega, drive.getRotation());
+              drive.runVelocity(speeds);
+            },
+            drive)
+        .beforeStarting(
+            () -> {
+              xController.reset();
+              yController.reset();
+              thetaController.reset(drive.getRotation().getRadians());
+            })
+        .until(
+            () -> xController.atSetpoint() && yController.atSetpoint() && thetaController.atGoal())
+        .finallyDo(() -> drive.runVelocity(new ChassisSpeeds()));
+  }
+
+  /**
+   * Drive via PID to the nearest alliance-aware reef face target pose (for the given level/side).
+   */
+  // public static Command driveToNearestAllianceReefFacePose(Drive drive, int level, PipeSide side)
+  // {
+  //   return new DeferredCommand(
+  //       () -> {
+  //         Branch nearest = FieldConstants.Reef.nearestBranch(drive.getPose());
+  //         Pose2d target = FieldConstants.Reef.scoringPose(nearest, level, side);
+  //         return driveToPose(drive, target);
+  //       },
+  //       Set.of(drive));
+  // }
+
+  /** Align to algae intake pose at the nearest reef face using autopilot. */
+  public static Command alignToNearestAllianceReefAlgae(Drive drive) {
+    return new DeferredCommand(
+        () -> {
+          Branch nearest = FieldConstants.Reef.nearestBranch(drive.getPose());
+          Pose2d target = FieldConstants.Reef.algaePose(nearest);
+          APTarget apTarget =
+              new APTarget(target)
+                  .withEntryAngle(target.getRotation().plus(Rotation2d.fromDegrees(180)));
+          return drive.align(apTarget);
+        },
+        Set.of(drive));
   }
 
   /**

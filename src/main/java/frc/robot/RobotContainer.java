@@ -30,6 +30,7 @@ import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.button.JoystickButton;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine;
 import frc.robot.FieldConstants.Reef.PipeSide;
+import frc.robot.commands.AlgaeCommands;
 import frc.robot.commands.DriveCommands;
 import frc.robot.commands.ElevatorCommands;
 import frc.robot.commands.IntakeCommands;
@@ -88,6 +89,8 @@ public class RobotContainer {
       new LoggedNetworkNumber("Autopilot/ReefLevel", 4);
   // Selected pipe side for scoring (set by driver triggers/Y)
   private PipeSide selectedPipeSide = PipeSide.CENTER;
+  // Toggle to run coral+algae (supercycling) instead of just coral
+  private boolean supercycling = false;
 
   /** Manual starting pose options. */
   public enum StartPose {
@@ -327,13 +330,26 @@ public class RobotContainer {
 
     // Y button: choose CENTER pipe and align while held
     controller.y().onTrue(Commands.runOnce(() -> selectedPipeSide = PipeSide.CENTER));
+    // For CENTER, use simple drive-to-pose instead of autopilot alignment
     controller
         .y()
-        .whileTrue(
-            DriveCommands.alignToNearestAllianceReefFace(
-                drive, () -> getSelectedReefLevel(), PipeSide.CENTER));
+        .onTrue(
+            Commands.defer(
+                () ->
+                    DriveCommands.driveToNearestAllianceReefFacePose(
+                        drive, getSelectedReefLevel(), PipeSide.CENTER),
+                java.util.Set.of(drive)));
 
     if (elevator != null && wrist != null) {
+      // Toggle supercycling (coral + algae) on X
+      controller
+          .x()
+          .onTrue(
+              Commands.runOnce(
+                  () -> {
+                    supercycling = !supercycling;
+                    System.out.println("Supercycling: " + (supercycling ? "ON" : "OFF"));
+                  }));
       // Left/Right bumpers: run scoring on LEFT/RIGHT pipe at selected level
       controller
           .leftBumper()
@@ -343,7 +359,15 @@ public class RobotContainer {
                     int lvl = getSelectedReefLevel();
                     if (lvl < 2) lvl = 2;
                     if (lvl > 4) lvl = 4;
-                    return ScoreCommands.scoreReefLevel(drive, elevator, wrist, lvl, PipeSide.LEFT);
+                    Command coral =
+                        ScoreCommands.scoreReefLevel(drive, elevator, wrist, lvl, PipeSide.LEFT);
+                    if (supercycling && endEffector != null) {
+                      return Commands.sequence(
+                          coral,
+                          AlgaeCommands.intakeReefAlgae(drive, elevator, wrist, endEffector));
+                    } else {
+                      return coral;
+                    }
                   },
                   java.util.Set.of(drive, elevator, wrist)));
       controller
@@ -354,8 +378,15 @@ public class RobotContainer {
                     int lvl = getSelectedReefLevel();
                     if (lvl < 2) lvl = 2;
                     if (lvl > 4) lvl = 4;
-                    return ScoreCommands.scoreReefLevel(
-                        drive, elevator, wrist, lvl, PipeSide.RIGHT);
+                    Command coral =
+                        ScoreCommands.scoreReefLevel(drive, elevator, wrist, lvl, PipeSide.RIGHT);
+                    if (supercycling && endEffector != null) {
+                      return Commands.sequence(
+                          coral,
+                          AlgaeCommands.intakeReefAlgae(drive, elevator, wrist, endEffector));
+                    } else {
+                      return coral;
+                    }
                   },
                   java.util.Set.of(drive, elevator, wrist)));
       // Scoring: select level with APAC (8-11), select side with triggers (LT/RT or Y),

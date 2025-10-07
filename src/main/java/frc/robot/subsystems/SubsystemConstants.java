@@ -11,8 +11,7 @@ public class SubsystemConstants {
   public static final int ElevatorLEADER_ID = 15;
   public static final int ElevatorFOLLOWER_ID = 14;
   public static final int Wrist_ID = 18;
-  // New mechanisms
-  // TODO: Update these CAN IDs to match your wiring
+
   public static final int CoralIntake_ID = 21; // CTRE Minion on Talon FXS
   public static final int EndEffector_ID = 20; // Kraken X60 on Talon FX
   public static final int CANANDCOLOR_ID = 22; // Redux Phosphorus CANandcolor sensor

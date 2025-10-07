@@ -90,7 +90,11 @@ public final class ScoreCommands {
     var stowElevator = SubsystemConstants.ElevatorPosition.Down.distance();
     var stowWrist = SubsystemConstants.WristPosition.Stowed.angle();
 
-    Command alignCmd = DriveCommands.alignToNearestAllianceReefFace(drive, level, side);
+    // For center pipe, prefer simple drive-to-pose; for left/right use autopilot alignment.
+    Command alignCmd =
+        (side == PipeSide.CENTER)
+            ? DriveCommands.driveToNearestAllianceReefFacePose(drive, level, side)
+            : DriveCommands.alignToNearestAllianceReefFace(drive, level, side);
 
     // Run alignment + mechanisms together, finish when all reach target
     Command reachTargets =
