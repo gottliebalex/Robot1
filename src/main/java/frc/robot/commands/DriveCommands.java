@@ -31,6 +31,8 @@ import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.DeferredCommand;
 import frc.robot.FieldConstants;
+import frc.robot.FieldConstants.Reef.AlgaeStandoff;
+import frc.robot.FieldConstants.Reef.AlgaeMode;
 import frc.robot.FieldConstants.Reef.Branch;
 import frc.robot.FieldConstants.Reef.PipeSide;
 import frc.robot.subsystems.drive.Drive;
@@ -340,5 +342,22 @@ public class DriveCommands {
       Drive drive, java.util.function.Supplier<Integer> levelSupplier, PipeSide side) {
     return new DeferredCommand(
         () -> alignToNearestAllianceReefFace(drive, levelSupplier.get(), side), Set.of(drive));
+  }
+
+  public static Command alignToNearestAlgaePose(Drive drive) {
+    return alignToNearestAlgaePose(drive, AlgaeMode.SUPERCYCLE);
+  }
+
+  public static Command alignToNearestAlgaePose(Drive drive, AlgaeMode mode) {
+    return new DeferredCommand(
+        () -> {
+          Branch nearest = FieldConstants.Reef.nearestBranch(drive.getPose());
+          Pose2d target = FieldConstants.Reef.algaePose(nearest, mode);
+          APTarget apTarget =
+              new APTarget(target)
+                  .withEntryAngle(target.getRotation().plus(Rotation2d.fromDegrees(180)));
+          return drive.align(apTarget);
+        },
+        Set.of(drive));
   }
 }

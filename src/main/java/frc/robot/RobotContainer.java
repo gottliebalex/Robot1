@@ -21,6 +21,8 @@ import com.pathplanner.lib.path.PathPlannerPath;
 import com.pathplanner.lib.util.FlippingUtil;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.networktables.BooleanTopic;
+import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.wpilibj.GenericHID;
 import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj2.command.Command;
@@ -269,6 +271,17 @@ public class RobotContainer {
     // Switch to X pattern when X button is pressed
     controller.x().onTrue(Commands.runOnce(drive::stopWithX, drive));
 
+    // Start button: toggle supercycle mode (affects coral scoring alignment)
+    controller
+        .start()
+        .onTrue(
+            Commands.runOnce(
+                () -> {
+                  GamePiece.toggleSupercycle();
+                  System.out.println(
+                      "Supercycle mode: " + (GamePiece.isSupercycleEnabled() ? "ENABLED" : "DISABLED"));
+                }));
+
     // Reset gyro to 0° when B button is pressed
     controller
         .b()
@@ -325,16 +338,12 @@ public class RobotContainer {
             DriveCommands.alignToNearestAllianceReefFace(
                 drive, () -> getSelectedReefLevel(), PipeSide.RIGHT));
 
-    // Y button: choose CENTER pipe and align while held
-    controller.y().onTrue(Commands.runOnce(() -> selectedPipeSide = PipeSide.CENTER));
-    controller
-        .y()
-        .whileTrue(
-            DriveCommands.alignToNearestAllianceReefFace(
-                drive, () -> getSelectedReefLevel(), PipeSide.CENTER));
+    // Y button repurposed below (when mechanisms present) to run reef algae intake
 
     if (elevator != null && wrist != null) {
       // Left/Right bumpers: run scoring on LEFT/RIGHT pipe at selected level
+      // Single factory: always call the end-effector variant; it will
+      // branch at runtime based on supercycle toggle and endEffector presence.
       controller
           .leftBumper()
           .onTrue(
@@ -343,7 +352,8 @@ public class RobotContainer {
                     int lvl = getSelectedReefLevel();
                     if (lvl < 2) lvl = 2;
                     if (lvl > 4) lvl = 4;
-                    return ScoreCommands.scoreReefLevel(drive, elevator, wrist, lvl, PipeSide.LEFT);
+                    return ScoreCommands.scoreReefLevel(
+                        drive, endEffector, elevator, wrist, lvl, PipeSide.LEFT);
                   },
                   java.util.Set.of(drive, elevator, wrist)));
       controller
@@ -355,25 +365,21 @@ public class RobotContainer {
                     if (lvl < 2) lvl = 2;
                     if (lvl > 4) lvl = 4;
                     return ScoreCommands.scoreReefLevel(
-                        drive, elevator, wrist, lvl, PipeSide.RIGHT);
+                        drive, endEffector, elevator, wrist, lvl, PipeSide.RIGHT);
                   },
                   java.util.Set.of(drive, elevator, wrist)));
-      // Scoring: select level with APAC (8-11), select side with triggers (LT/RT or Y),
-      // then press any level button (2/3/4) to run the score sequence for the current selection.
-      // Command dynamicScore =
-      //     Commands.defer(
-      //         () -> {
-      //           int lvl = getSelectedReefLevel();
-      //           // ScoreCommands supports L2-L4; clamp here to avoid L1 mis-selection
-      //           if (lvl < 2) lvl = 2;
-      //           if (lvl > 4) lvl = 4;
-      //           return ScoreCommands.scoreReefLevel(drive, elevator, wrist, lvl,
-      // selectedPipeSide);
-      //         },
-      //         java.util.Set.of(drive, elevator, wrist));
-      // new JoystickButton(apacController, 2).onTrue(dynamicScore);
-      // new JoystickButton(apacController, 3).onTrue(dynamicScore);
-      // new JoystickButton(apacController, 4).onTrue(dynamicScore);
+
+      // Y button: run reef algae intake (L2/L3 based on selected level)
+      controller
+          .y()
+          .onTrue(
+              Commands.defer(
+                  () -> {
+                    int lvl = 
+                    return frc.robot.commands.IntakeCommands.intakeReefAlgae(
+                        drive, endEffector, elevator, wrist, lvl);
+                  },
+                  java.util.Set.of(drive, endEffector, elevator, wrist)));
       // Cancel button
 
       controller

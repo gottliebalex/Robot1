@@ -1,0 +1,250 @@
+        "Drive SysId (Dynamic Forward)", drive.sysIdDynamic(SysIdRoutine.Direction.kForward));
+    autoChooser.addOption(
+        "Drive SysId (Dynamic Reverse)", drive.sysIdDynamic(SysIdRoutine.Direction.kReverse));
+
+    // Configure the button bindings
+    configureButtonBindings();
+  }
+
+  /**
+   * Use this method to define your button->command mappings. Buttons can be created by
+   * instantiating a {@link GenericHID} or one of its subclasses ({@link
+   * edu.wpi.first.wpilibj.Joystick} or {@link XboxController}), and then passing it to a {@link
+   * edu.wpi.first.wpilibj2.command.button.JoystickButton}.
+   */
+  private void configureButtonBindings() {
+    // Default command, normal field-relative drive
+    drive.setDefaultCommand(
+        DriveCommands.joystickDrive(
+            drive,
+            () -> -controller.getLeftY(),
+            () -> -controller.getLeftX(),
+            () -> -controller.getRightX()));
+
+    // Default wrist hold at 0 degrees (stowed)
+    if (wrist != null) {
+      wrist.setDefaultCommand(
+          Commands.sequence(
+                  wrist.setAngle(SubsystemConstants.WristPosition.Stowed.angle()),
+                  Commands.run(() -> {}, wrist))
+              .withName("Wrist Default Command (0 deg)"));
+
+      elevator.setDefaultCommand(
+          Commands.sequence(
+                  elevator.setHeight(SubsystemConstants.ElevatorPosition.Down.distance()),
+                  Commands.run(() -> {}, elevator))
+              .withName("Elevator Default Command"));
+    }
+
+    // Lock to 0° when A button is held
+    controller
+        .a()
+        .whileTrue(
+            DriveCommands.joystickDriveAtAngle(
+                drive,
+                () -> -controller.getLeftY(),
+                () -> -controller.getLeftX(),
+                () -> new Rotation2d()));
+
+    // Switch to X pattern when X button is pressed
+    controller.x().onTrue(Commands.runOnce(drive::stopWithX, drive));
+
+    // Start button: toggle supercycle mode (affects coral scoring alignment)
+    controller
+        .start()
+        .onTrue(
+            Commands.runOnce(
+                () -> {
+                  GamePiece.toggleSupercycle();
+                  System.out.println(
+                      "Supercycle mode: " + (GamePiece.isSupercycleEnabled() ? "ENABLED" : "DISABLED"));
+                }));
+
+    // Reset gyro to 0° when B button is pressed
+    controller
+        .b()
+        .onTrue(
+            Commands.runOnce(
+                    () ->
+                        drive.setPose(
+                            new Pose2d(drive.getPose().getTranslation(), new Rotation2d())),
+                    drive)
+                .ignoringDisable(true));
+
+    // select level standoff and triggers/Y for alignment
+
+    new JoystickButton(apacController, 8)
+        .onTrue(
+            Commands.runOnce(
+                () -> {
+                  ReefLevel.set(1);
+                  System.out.println("Autopilot level set to L1 (APAC)");
+                }));
+    new JoystickButton(apacController, 9)
+        .onTrue(
+            Commands.runOnce(
+                () -> {
+                  ReefLevel.set(2);
+                  System.out.println("Autopilot level set to L2 (APAC)");
+                }));
+    new JoystickButton(apacController, 10)
+        .onTrue(
+            Commands.runOnce(
+                () -> {
+                  ReefLevel.set(3);
+                  System.out.println("Autopilot level set to L3 (APAC)");
+                }));
+    new JoystickButton(apacController, 11)
+        .onTrue(
+            Commands.runOnce(
+                () -> {
+                  ReefLevel.set(4);
+                  System.out.println("Autopilot level set to L4 (APAC)");
+                }));
+
+    // Left/Right triggers: choose LEFT/RIGHT pipe side and align while held
+    controller.leftTrigger().onTrue(Commands.runOnce(() -> selectedPipeSide = PipeSide.LEFT));
+    controller
+        .leftTrigger()
+        .whileTrue(
+            DriveCommands.alignToNearestAllianceReefFace(
+                drive, () -> getSelectedReefLevel(), PipeSide.LEFT));
+    controller.rightTrigger().onTrue(Commands.runOnce(() -> selectedPipeSide = PipeSide.RIGHT));
+    controller
+        .rightTrigger()
+        .whileTrue(
+            DriveCommands.alignToNearestAllianceReefFace(
+                drive, () -> getSelectedReefLevel(), PipeSide.RIGHT));
+
+    // Y button repurposed below (when mechanisms present) to run reef algae intake
+
+    if (elevator != null && wrist != null) {
+      // Left/Right bumpers: run scoring on LEFT/RIGHT pipe at selected level
+      // Single factory: always call the end-effector variant; it will
+      // branch at runtime based on supercycle toggle and endEffector presence.
+      controller
+          .leftBumper()
+          .onTrue(
+              Commands.defer(
+                  () -> {
+                    int lvl = getSelectedReefLevel();
+                    if (lvl < 2) lvl = 2;
+                    if (lvl > 4) lvl = 4;
+                    return ScoreCommands.scoreReefLevel(
+                        drive, endEffector, elevator, wrist, lvl, PipeSide.LEFT);
+                  },
+                  java.util.Set.of(drive, elevator, wrist)));
+      controller
+          .rightBumper()
+          .onTrue(
+              Commands.defer(
+                  () -> {
+                    int lvl = getSelectedReefLevel();
+                    if (lvl < 2) lvl = 2;
+                    if (lvl > 4) lvl = 4;
+                    return ScoreCommands.scoreReefLevel(
+                        drive, endEffector, elevator, wrist, lvl, PipeSide.RIGHT);
+                  },
+                  java.util.Set.of(drive, elevator, wrist)));
+
+      // Y button: run reef algae intake (L2/L3 based on selected level)
+      controller
+          .y()
+          .onTrue(
+              Commands.defer(
+                  () -> {
+                    int lvl = 
+                    return frc.robot.commands.IntakeCommands.intakeReefAlgae(
+                        drive, endEffector, elevator, wrist, lvl);
+                  },
+                  java.util.Set.of(drive, endEffector, elevator, wrist)));
+      // Cancel button
+
+      controller
+          .povDown()
+          .onTrue(
+              Commands.runOnce(CommandScheduler.getInstance()::cancelAll)
+                  .andThen(
+                      Commands.parallel(
+                          WristCommands.Stowed(wrist), ElevatorCommands.Down(elevator))));
+      // for testing elevator/wrist
+      new JoystickButton(apacController, 5).onTrue(WristCommands.Stowed(wrist));
+      new JoystickButton(apacController, 6).onTrue(WristCommands.AlgaeIntake(wrist));
+      new JoystickButton(apacController, 7).onTrue(WristCommands.TestWrist(wrist));
+      new JoystickButton(apacController, 12).onTrue(ElevatorCommands.Down(elevator));
+      new JoystickButton(apacController, 13).onTrue(ElevatorCommands.L3Score(elevator));
+
+      // Coral intake sequence and simulation helper
+      if (coralIntake != null && endEffector != null) {
+        new JoystickButton(apacController, 1)
+            .toggleOnTrue(
+                IntakeCommands.intakeCoral(
+                        coralIntake,
+                        endEffector,
+                        elevator,
+                        coralSensor,
+                        SubsystemConstants.DEFAULT_CORAL_INTAKE_SPEED,
+                        SubsystemConstants.DEFAULT_END_EFFECTOR_SPEED)
+                    .withName("Intake Coral"));
+
+        // Simulate sensor trip (toggles SmartDashboard Sim/CoralDetected briefly)
+        new JoystickButton(apacController, 2)
+            .onTrue(IntakeCommands.simulateCoralDetectionPulse(coralSensor));
+      }
+    }
+  }
+
+  private int getSelectedReefLevel() {
+    // Round and clamp to valid levels [1,4]
+    int lvl = (int) Math.round(ReefLevel.get());
+    if (lvl < 1) return 1;
+    if (lvl > 4) return 4;
+    return lvl;
+  }
+
+  /**
+   * Use this to pass the autonomous command to the main {@link Robot} class.
+   *
+   * @return the command to run in autonomous
+   */
+  public Command getAutonomousCommand() {
+    return autoChooser.get();
+  }
+
+  private Pose2d getStartingPoseForSelectedAuto() {
+    Command selected = autoChooser.get();
+    return FieldConstants.isBlueAlliance()
+        ? autoStartingPosesBlue.get(selected)
+        : autoStartingPosesRed.get(selected);
+  }
+
+  /* Returns the manually selected starting pose. */
+  private Pose2d getManualStartingPose() {
+    StartPose selected = startPoseChooser.get();
+    return FieldConstants.isBlueAlliance()
+        ? manualStartingPosesBlue.get(selected)
+        : manualStartingPosesRed.get(selected);
+  }
+
+  /* Applies the manually selected starting pose. Something about this is not working*/
+  public void applyManualStartingPose() {
+    Pose2d pose = getManualStartingPose();
+    if (pose != null) {
+      drive.setPose(pose);
+    }
+  }
+
+  /**
+   * Applies the starting pose either from the selected autonomous routine or the manual chooser. I
+   * don't know why manual starting pose doesn't work currently
+   */
+  public void applySelectedStartingPose() {
+    Pose2d pose = getStartingPoseForSelectedAuto();
+    if (pose == null) {
+      pose = getManualStartingPose();
+    }
+    if (pose != null) {
+      drive.setPose(pose);
+    }
+  }
+}

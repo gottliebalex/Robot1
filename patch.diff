@@ -1,0 +1,68 @@
+*** Begin Patch
+*** Update File: src/main/java/frc/robot/FieldConstants.java
+@@
+-    public static Pose2d algaePose (Branch branch, Level level, AlgaeMode algaemode){}
++    /**
++     * Returns the algae pose for a given branch using the desired mode.
++     * Automatically selects the algae level (L2/L3) and side based on the
++     * configured per-face placement maps (GrabALGAE_PLACEMENT / SCALGAE_PLACEMENT).
++     * The provided {@code level} is only used as a fallback if a placement is
++     * missing for the branch.
++     */
++    public static Pose2d algaePose(Branch branch, Level level, AlgaeMode algaemode) {
++      // Choose the configured placement (level + side) for this face and mode
++      AlgaePlacement placement =
++          (algaemode == AlgaeMode.SUPERCYCLE)
++              ? SCALGAE_PLACEMENT.get(branch)
++              : GrabALGAE_PLACEMENT.get(branch);
++
++      if (placement != null) {
++        return CURRENT_SCORING_SIDE
++            .get(branch)
++            .get(placement.level())
++            .get(placement.side());
++      }
++
++      // Fallback: derive an appropriate algae level from the input
++      Level derived = switch (algaemode) {
++        case SUPERCYCLE -> (level == Level.L3 || level == Level.L3SCAlgae)
++            ? Level.L3SCAlgae
++            : Level.L2SCAlgae;
++        case GRAB -> (level == Level.L3 || level == Level.L3GrabAlgae)
++            ? Level.L3GrabAlgae
++            : Level.L2GrabAlgae;
++      };
++
++      return CURRENT_SCORING_SIDE.get(branch).get(derived).get(PipeSide.CENTER);
++    }
++
++    /** Convenience overload: auto-select level/side from face for the given mode. */
++    public static Pose2d algaePose(Branch branch, AlgaeMode algaemode) {
++      AlgaePlacement placement =
++          (algaemode == AlgaeMode.SUPERCYCLE)
++              ? SCALGAE_PLACEMENT.get(branch)
++              : GrabALGAE_PLACEMENT.get(branch);
++      if (placement == null) {
++        // Default to L2 variants centered if not configured
++        Level fallback = (algaemode == AlgaeMode.SUPERCYCLE) ? Level.L2SCAlgae : Level.L2GrabAlgae;
++        return CURRENT_SCORING_SIDE.get(branch).get(fallback).get(PipeSide.CENTER);
++      }
++      return CURRENT_SCORING_SIDE
++          .get(branch)
++          .get(placement.level())
++          .get(placement.side());
++    }
++
++    // Backwards-compatibility for existing callers using AlgaeStandoff/int level
++    public enum AlgaeStandoff {
++      SUPERCYCLE,
++      GRAB
++    }
++
++    public static Pose2d algaePose(Branch branch, int level, AlgaeStandoff standoff) {
++      // Map coral level int to base Level (algae uses L2/L3 only)
++      Level base = (level <= 2) ? Level.L2 : Level.L3;
++      AlgaeMode mode = (standoff == AlgaeStandoff.SUPERCYCLE) ? AlgaeMode.SUPERCYCLE : AlgaeMode.GRAB;
++      return algaePose(branch, base, mode);
++    }
+*** End Patch

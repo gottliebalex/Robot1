@@ -13,6 +13,7 @@ public final class GamePiece {
   }
 
   private static volatile Mode current = Mode.NONE;
+  private static volatile boolean supercycleEnabled = false;
 
   public static void setMode(Mode mode) {
     current = mode;
@@ -25,5 +26,19 @@ public final class GamePiece {
 
   public static boolean isCoral() {
     return current == Mode.CORAL;
+  }
+
+  // Supercycle (align to algae SC standoff when scoring coral)
+  public static void setSupercycleEnabled(boolean enabled) {
+    supercycleEnabled = enabled;
+    SmartDashboard.putBoolean("SupercycleEnabled", supercycleEnabled);
+  }
+
+  public static boolean isSupercycleEnabled() {
+    return supercycleEnabled;
+  }
+
+  public static void toggleSupercycle() {
+    setSupercycleEnabled(!supercycleEnabled);
   }
 }

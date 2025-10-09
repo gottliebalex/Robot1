@@ -3,28 +3,18 @@ package frc.robot;
 import com.pathplanner.lib.auto.AutoBuilder;
 import com.pathplanner.lib.path.PathPlannerPath;
 import com.pathplanner.lib.util.FileVersionException;
-
-import edu.wpi.first.units.Measure;
-import edu.wpi.first.units.measure.Distance;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
-import frc.robot.commands.ElevatorCommands;
 import frc.robot.commands.ScoreCommands;
 import frc.robot.subsystems.SubsystemConstants;
-import frc.robot.subsystems.SubsystemConstants.ElevatorPosition;
 import frc.robot.subsystems.drive.Drive;
 import frc.robot.subsystems.elevator.ElevatorSubsystem;
 import frc.robot.subsystems.wrist.WristSubsystem;
-
-import static edu.wpi.first.units.Units.Inches;
-import static edu.wpi.first.units.Units.Meters;
-
 import java.io.IOException;
 import org.json.simple.parser.ParseException;
 
 /** Autonomous helpers and routines. */
 public final class Autos {
-
 
   private Autos() {}
 
@@ -45,9 +35,13 @@ public final class Autos {
 
   public static Command choreoStartJThenJStation(
       Drive drive, ElevatorSubsystem elevator, WristSubsystem wrist) {
+    var elevIntermediate = SubsystemConstants.ElevatorPosition.L3.distance();
     try {
       PathPlannerPath startJoffset = PathPlannerPath.fromChoreoTrajectory("Start-Joffset");
       PathPlannerPath jStation = PathPlannerPath.fromChoreoTrajectory("J-Station");
+      PathPlannerPath StationKoffset = PathPlannerPath.fromChoreoTrajectory("Station-Koffset");
+      PathPlannerPath kStation = PathPlannerPath.fromChoreoTrajectory("K-Station");
+      PathPlannerPath StationLoffset = PathPlannerPath.fromChoreoTrajectory("Station-Loffset");
 
       Command reset =
           startJoffset
@@ -57,10 +51,28 @@ public final class Autos {
 
       return Commands.sequence(
               reset,
-              Commands.parallel(AutoBuilder.followPath(startJoffset),
-              elevator.waitUntilAtHeight(SubsystemConstants.ElevatorPosition.L3)),              
+              Commands.parallel(
+                  AutoBuilder.followPath(startJoffset),
+                  Commands.deadline(
+                      elevator.waitUntilAtHeight(elevIntermediate),
+                      elevator.setHeight(elevIntermediate))),
               ScoreCommands.scoreL4Right(drive, elevator, wrist),
-              AutoBuilder.followPath(jStation))
+              AutoBuilder.followPath(jStation),
+              Commands.waitSeconds(0.5),
+              Commands.parallel(
+                  AutoBuilder.followPath(StationKoffset),
+                  Commands.deadline(
+                      elevator.waitUntilAtHeight(elevIntermediate),
+                      elevator.setHeight(elevIntermediate))),
+              ScoreCommands.scoreL4Left(drive, elevator, wrist),
+              AutoBuilder.followPath(kStation),
+              Commands.waitSeconds(0.5),
+              Commands.parallel(
+                  AutoBuilder.followPath(StationLoffset),
+                  Commands.deadline(
+                      elevator.waitUntilAtHeight(elevIntermediate),
+                      elevator.setHeight(elevIntermediate))),
+              ScoreCommands.scoreL4Right(drive, elevator, wrist))
           .withName("Start-J -> J-Station (Choreo)");
     } catch (IOException | ParseException | FileVersionException e) {
       return Commands.print("Failed to load Choreo paths Start-J/J-Station: " + e.getMessage());

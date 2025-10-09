@@ -1,0 +1,200 @@
+// Copyright 2021-2025 FRC 6328
+// http://github.com/Mechanical-Advantage
+//
+// This program is free software; you can redistribute it and/or
+// modify it under the terms of the GNU General Public License
+// version 3 as published by the Free Software Foundation or
+// available in the root directory of this project.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+package frc.robot;
+
+import static frc.robot.subsystems.vision.VisionConstants.robotToCamera0;
+import static frc.robot.subsystems.vision.VisionConstants.robotToCamera1;
+
+import com.pathplanner.lib.auto.AutoBuilder;
+import com.pathplanner.lib.path.PathPlannerPath;
+import com.pathplanner.lib.util.FlippingUtil;
+import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.wpilibj.GenericHID;
+import edu.wpi.first.wpilibj.XboxController;
+import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.CommandScheduler;
+import edu.wpi.first.wpilibj2.command.Commands;
+import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
+import edu.wpi.first.wpilibj2.command.button.JoystickButton;
+import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine;
+import frc.robot.FieldConstants.Reef.PipeSide;
+import frc.robot.commands.DriveCommands;
+import frc.robot.commands.ElevatorCommands;
+import frc.robot.commands.IntakeCommands;
+import frc.robot.commands.ScoreCommands;
+import frc.robot.commands.WristCommands;
+import frc.robot.generated.TunerConstants;
+import frc.robot.sensors.CoralSensor;
+import frc.robot.subsystems.SubsystemConstants;
+import frc.robot.subsystems.drive.Drive;
+import frc.robot.subsystems.drive.GyroIO;
+import frc.robot.subsystems.drive.GyroIOPigeon2;
+import frc.robot.subsystems.drive.ModuleIO;
+import frc.robot.subsystems.drive.ModuleIOSim;
+import frc.robot.subsystems.drive.ModuleIOTalonFX;
+import frc.robot.subsystems.elevator.ElevatorSubsystem;
+import frc.robot.subsystems.endeffector.EndEffectorSubsystem;
+import frc.robot.subsystems.intake.CoralIntakeSubsystem;
+import frc.robot.subsystems.vision.Vision;
+import frc.robot.subsystems.vision.VisionIO;
+import frc.robot.subsystems.vision.VisionIOPhotonVision;
+import frc.robot.subsystems.vision.VisionIOPhotonVisionSim;
+import frc.robot.subsystems.wrist.WristSubsystem;
+import java.util.HashMap;
+import java.util.Map;
+import org.littletonrobotics.junction.networktables.LoggedDashboardChooser;
+import org.littletonrobotics.junction.networktables.LoggedNetworkNumber;
+
+/**
+ * This class is where the bulk of the robot should be declared. Since Command-based is a
+ * "declarative" paradigm, very little robot logic should actually be handled in the {@link Robot}
+ * periodic methods (other than the scheduler calls). Instead, the structure of the robot (including
+ * subsystems, commands, and button mappings) should be declared here.
+ */
+public class RobotContainer {
+  // Subsystems
+  private final Drive drive;
+  private final Vision vision;
+  private final ElevatorSubsystem elevator;
+  private final WristSubsystem wrist;
+  private final CoralIntakeSubsystem coralIntake;
+  private final EndEffectorSubsystem endEffector;
+  private final CoralSensor coralSensor;
+
+  // Controller
+  private final CommandXboxController controller = new CommandXboxController(0);
+  private final GenericHID apacController = new GenericHID(1);
+
+  // Dashboard inputs
+  private final LoggedDashboardChooser<Command> autoChooser;
+  private final Map<Command, Pose2d> autoStartingPosesBlue = new HashMap<>();
+  private final Map<Command, Pose2d> autoStartingPosesRed = new HashMap<>();
+  private final LoggedDashboardChooser<StartPose> startPoseChooser;
+  private final Map<StartPose, Pose2d> manualStartingPosesBlue = new HashMap<>();
+  private final Map<StartPose, Pose2d> manualStartingPosesRed = new HashMap<>();
+  private final LoggedNetworkNumber ReefLevel = // auto align level selection
+      new LoggedNetworkNumber("Autopilot/ReefLevel", 4);
+  // Selected pipe side for scoring (set by driver triggers/Y)
+  private PipeSide selectedPipeSide = PipeSide.CENTER;
+
+  /** Manual starting pose options. */
+  public enum StartPose {
+    NONE,
+    LEFT,
+    RIGHT
+  }
+
+  /** The container for the robot. Contains subsystems, OI devices, and commands. */
+  public RobotContainer() {
+    // Cache alliance at init and update FieldConstants' precomputed views
+    FieldConstants.refreshAllianceCache();
+    switch (Constants.currentMode) {
+      case REAL:
+        // Real robot, instantiate hardware IO implementations
+        drive =
+            new Drive(
+                new GyroIOPigeon2(),
+                new ModuleIOTalonFX(TunerConstants.FrontLeft),
+                new ModuleIOTalonFX(TunerConstants.FrontRight),
+                new ModuleIOTalonFX(TunerConstants.BackLeft),
+                new ModuleIOTalonFX(TunerConstants.BackRight));
+
+        vision =
+            new Vision(
+                drive::addVisionMeasurement,
+                new VisionIOPhotonVision("camera_0", robotToCamera0),
+                new VisionIOPhotonVision("camera_1", robotToCamera1));
+
+        elevator = new ElevatorSubsystem();
+        wrist = new WristSubsystem();
+        coralIntake = new CoralIntakeSubsystem();
+        endEffector = new EndEffectorSubsystem();
+        coralSensor = new CoralSensor(SubsystemConstants.CANANDCOLOR_ID);
+        break;
+
+      case SIM:
+        // Sim robot, instantiate physics sim IO implementations
+        drive =
+            new Drive(
+                new GyroIO() {},
+                new ModuleIOSim(TunerConstants.FrontLeft),
+                new ModuleIOSim(TunerConstants.FrontRight),
+                new ModuleIOSim(TunerConstants.BackLeft),
+                new ModuleIOSim(TunerConstants.BackRight));
+
+        vision =
+            new Vision(
+                drive::addVisionMeasurement,
+                new VisionIOPhotonVisionSim("camera_0", robotToCamera0, drive::getPose),
+                new VisionIOPhotonVisionSim("camera_1", robotToCamera1, drive::getPose));
+        elevator = new ElevatorSubsystem();
+        wrist = new WristSubsystem();
+        coralIntake = new CoralIntakeSubsystem();
+        endEffector = new EndEffectorSubsystem();
+        coralSensor = new CoralSensor(SubsystemConstants.CANANDCOLOR_ID);
+        break;
+
+      default:
+        // Replayed robot, disable IO implementations
+        drive =
+            new Drive(
+                new GyroIO() {},
+                new ModuleIO() {},
+                new ModuleIO() {},
+                new ModuleIO() {},
+                new ModuleIO() {});
+
+        vision = new Vision(drive::addVisionMeasurement, new VisionIO() {}, new VisionIO() {});
+        elevator = null;
+        wrist = null;
+        coralIntake = null;
+        endEffector = null;
+        coralSensor = new CoralSensor();
+        break;
+    }
+
+    // Set up auto routines
+    autoChooser = new LoggedDashboardChooser<>("Auto Choices", AutoBuilder.buildAutoChooser());
+
+    // Add Choreo single-path auto: Start-J
+    Command startJChoreo = Autos.choreoStartJ(drive);
+    autoChooser.addOption("Start-J (Choreo)", startJChoreo);
+    // Populate starting poses for Start-J if the trajectory is available
+    try {
+      PathPlannerPath p = PathPlannerPath.fromChoreoTrajectory("Start-J");
+      p.getStartingHolonomicPose()
+          .ifPresent(
+              bluePose -> {
+                autoStartingPosesBlue.put(startJChoreo, bluePose);
+                autoStartingPosesRed.put(startJChoreo, FlippingUtil.flipFieldPose(bluePose));
+              });
+    } catch (Exception ignored) {
+    }
+
+    Command startJThenJStation = Autos.choreoStartJThenJStation(drive, elevator, wrist);
+    autoChooser.addOption("Start-J -> J-Station (Choreo)", startJThenJStation);
+    try {
+      PathPlannerPath p = PathPlannerPath.fromChoreoTrajectory("Start-J");
+      p.getStartingHolonomicPose()
+          .ifPresent(
+              bluePose -> {
+                autoStartingPosesBlue.put(startJThenJStation, bluePose);
+                autoStartingPosesRed.put(startJThenJStation, FlippingUtil.flipFieldPose(bluePose));
+              });
+    } catch (Exception ignored) {
+    }
+
+    // Manual starting pose chooser
+    startPoseChooser = new LoggedDashboardChooser<>("Start Pose");
