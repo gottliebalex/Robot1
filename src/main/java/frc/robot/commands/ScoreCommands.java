@@ -1,12 +1,12 @@
 package frc.robot.commands;
 
 import static edu.wpi.first.units.Units.Volts;
+import static edu.wpi.first.units.Units.Second;
+import static edu.wpi.first.units.Units.Seconds;
 
 import java.util.function.BooleanSupplier;
 
-import com.ctre.phoenix6.mechanisms.swerve.LegacySwerveRequest.FieldCentric;
-import com.fasterxml.jackson.databind.JsonSerializable.Base;
-
+import edu.wpi.first.math.util.Units;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.ParallelRaceGroup;
@@ -16,9 +16,11 @@ import frc.robot.FieldConstants.Reef.PipeSide;
 import frc.robot.FieldConstants;
 import frc.robot.GamePiece;
 import frc.robot.subsystems.SubsystemConstants;
+import frc.robot.subsystems.SubsystemConstants.ClawVoltages;
+import frc.robot.subsystems.claw.ClawSubsystem;
+import frc.robot.commands.ClawCommands;
 import frc.robot.subsystems.drive.Drive;
 import frc.robot.subsystems.elevator.ElevatorSubsystem;
-import frc.robot.subsystems.endeffector.EndEffectorSubsystem;
 import frc.robot.subsystems.wrist.WristSubsystem;
 
 /** Composite scoring commands for reef levels. */
@@ -285,33 +287,47 @@ public final class ScoreCommands {
   //       .withName("Score L" + level + " (" + side + ") + Supercycle");
   // }
 
-  public static Command scoreReefLevel(
+  public static Command scoreReefLevelSCorNOT(
     Drive drive, 
     ElevatorSubsystem elevator, 
     WristSubsystem wrist, 
-    EndEffectorSubsystem endeffector,
+    ClawSubsystem claw,
     int level, 
     AlgaeMode mode,
     PipeSide side,
     double volts,
+    double rampS,
+    double timoutS,
     double tripCurrentAmps,
-    double debounceSeconds) {
+    double debounceSeconds,
+    BooleanSupplier forceTrip) {
       //coral approaches
       var elevatorTarget =
         switch (level) {
           case 2 -> SubsystemConstants.ElevatorPosition.L2.distance();
-          case 3 -> SubsystemConstants.ElevatorPosition.L4.distance();
+          case 3 -> SubsystemConstants.ElevatorPosition.L3.distance();
           case 4 -> SubsystemConstants.ElevatorPosition.L4.distance();
           default -> SubsystemConstants.ElevatorPosition.Down.distance();
         };
 
-        var wristTarget =
+      var wristTarget =
         switch (level) {
           case 2 -> SubsystemConstants.WristPosition.L2Score.angle();
           case 3 -> SubsystemConstants.WristPosition.L3Score.angle();
           case 4 -> SubsystemConstants.WristPosition.L4Score.angle();
           default -> SubsystemConstants.WristPosition.Stowed.angle();
         };
+
+      var ejectPreset = 
+        switch (level) {
+          case 2 -> SubsystemConstants.ClawVoltages.CORAL_SCORE_L2;
+          case 3 -> SubsystemConstants.ClawVoltages.CORAL_SCORE_L3;
+          case 4 -> SubsystemConstants.ClawVoltages.CORAL_SCORE_L4;
+          default -> SubsystemConstants.ClawVoltages.DEFAULT;
+        };
+    
+    var stowElevator = SubsystemConstants.ElevatorPosition.Down.distance();
+    var stowWrist = SubsystemConstants.WristPosition.Stowed.angle();
 
     Command coralAlign = DriveCommands.alignToNearestAllianceReefFace(drive, level, side);
 
@@ -324,10 +340,9 @@ public final class ScoreCommands {
             elevator.waitUntilAtHeight(elevatorTarget), elevator.setHeight(elevatorTarget)),
           Commands.deadline(
           wrist.waitUntilAtAngle(wristTarget), wrist.setAngle(wristTarget)));
-    
-    Command scoreCoral = 
-        endeffector.scoreCoral(level).withTimeout(0.4);
-        
+       
+    Command runRollers = ClawCommands.runRollers(claw, ejectPreset);
+       
     var nearest = FieldConstants.Reef.nearestBranch(drive.getPose());
 
     int baseLevel = FieldConstants.Reef.algaeBaseLevel(nearest, AlgaeMode.SUPERCYCLE);
@@ -338,8 +353,14 @@ public final class ScoreCommands {
 
     var SCwristTarget = SubsystemConstants.WristPosition.ReefSCAlgae.angle();
 
-    Command intakeAlgae =
-      Commands.sequence(endeffector.intakeAlgae(volts, tripCurrentAmps, debounceSeconds));
+    Command intakeAlgae = IntakeCommands.intakeAlgae(
+      claw,
+      volts,
+      rampS,
+      timoutS,
+      tripCurrentAmps,
+      debounceSeconds,
+      forceTrip);
 
     Command SCorNOT;
       
@@ -352,18 +373,47 @@ public final class ScoreCommands {
                 elevator.setHeight(SCElevatorTarget)),
               Commands.deadline(
                 wrist.waitUntilAtAngle(SCwristTarget), 
-                wrist.waitUntilAtAngle(SCwristTarget)),
+                wrist.setAngle(SCwristTarget)),
               intakeAlgae
               );
     }
-      Command supercycle =
+    else {
+      SCorNOT=
+        Commands.parallel(
+            Commands.deadline(
+              elevator.waitUntilAtHeight(stowElevator), elevator.setHeight(stowElevator)),
+            Commands.deadline(wrist.waitUntilAtAngle(stowWrist), wrist.setAngle(stowWrist)));
+    }
+      
           
 
     return Commands.sequence(
-      reachCoralSetpoints, scoreCoral, 
-    )
-        
+      reachCoralSetpoints, runRollers, SCorNOT
+    );        
     }
+
+    public static Command scoreL4LeftSCorNot(
+      Drive drive,
+      ElevatorSubsystem elevatorSubsystem,
+      WristSubsystem wrist,
+      ClawSubsystem claw) {
+        var preset = SubsystemConstants.ClawVoltages.CORAL_SCORE_L4;
+        double volts = preset.volts().in(Volts);
+        double rampS = preset.rampS().in(Seconds);
+        double timeoutS = preset.timeoutS().in(Seconds);
+        var mode = GamePiece.isSupercycleEnabled()
+          ?AlgaeMode.SUPERCYCLE
+          :AlgaeMode.GRAB;
+      // return scoreReefLevelSCorNOT(drive, elevatorSubsystem, wrist, claw, 
+      // 4, null, PipeSide.LEFT, 
+      // volts, rampS, volts, rampS,  timeoutS,null);
+      // }
+      return scoreReefLevelSCorNOT(drive, elevatorSubsystem, wrist, claw,
+      0, null, PipeSide.LEFT,
+      volts, rampS, volts, rampS, timeoutS, null);
+
+    
+}
 }
 
 

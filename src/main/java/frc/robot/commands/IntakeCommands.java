@@ -1,5 +1,11 @@
 package frc.robot.commands;
 
+import java.util.function.BooleanSupplier;
+
+import com.ctre.phoenix6.BaseStatusSignal;
+
+import edu.wpi.first.math.filter.Debouncer;
+import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.DeferredCommand;
@@ -9,15 +15,24 @@ import frc.robot.FieldConstants.Reef.AlgaeMode;
 import frc.robot.GamePiece;
 import frc.robot.sensors.CoralSensor;
 import frc.robot.subsystems.SubsystemConstants;
+import frc.robot.subsystems.SubsystemConstants.ClawVoltages;
 import frc.robot.subsystems.drive.Drive;
 import frc.robot.subsystems.elevator.ElevatorSubsystem;
-import frc.robot.subsystems.endeffector.EndEffectorSubsystem;
+import frc.robot.subsystems.claw.ClawSubsystem;
 import frc.robot.subsystems.intake.CoralIntakeSubsystem;
 import frc.robot.subsystems.wrist.WristSubsystem;
+import frc.robot.commands.ClawCommands;
 
 /** Composite commands for intaking coral and algae. */
   public final class IntakeCommands {
-  private IntakeCommands() {}
+      // algae detection
+    private static final double DEFAULT_ALGAE_TRIP_CURRENT_AMPS = 25.0;
+    private static final double DEFAULT_ALGAE_DEBOUNCE_S = 0.10;
+    private static final double DEFAULT_START_IGNORE_S = 0.15;  
+
+    //private final ClawSubsystem claw;
+    //private final ClawSubsystem claw;
+     
 
   /**
    * Intake coral: runs intake and end effector at specified speeds, moves elevator to intake height
@@ -26,24 +41,22 @@ import frc.robot.subsystems.wrist.WristSubsystem;
    */
   public static Command intakeCoral(
       CoralIntakeSubsystem intake,
-      EndEffectorSubsystem endEffector,
+      ClawSubsystem claw,
       ElevatorSubsystem elevator,
       CoralSensor sensor,
-      double intakeSpeed,
-      double endEffectorSpeed) {
-    var intakeHeight = SubsystemConstants.ElevatorPosition.Intake.distance();
-    var stowHeight = SubsystemConstants.ElevatorPosition.Down.distance();
+      double volts,
+      double intakeSpeed) {
 
-    var setMode = Commands.runOnce(() -> GamePiece.setMode(GamePiece.Mode.CORAL));
-
-    var runIntake = intake.runDuty(intakeSpeed);
-    var runEndEffector = endEffector.runDuty(endEffectorSpeed);
+      
+      var setCoralMode = ClawCommands.setCoralMode();
+      var intakeHeight = SubsystemConstants.ElevatorPosition.Intake.distance();
+      var stowHeight = SubsystemConstants.ElevatorPosition.Down.distance(); 
 
     // Move to intake height while motors run until sensor trips
     var moveToIntakeUntilTripped =
         Commands.deadline(Commands.waitUntil(sensor::isTripped), elevator.setHeight(intakeHeight));
     // After trip, ensure sim flag is cleared so it doesn't latch in SIM
-    var clearSimAfterTrip =
+    var clearSimTrip =
         Commands.runOnce(
             () -> {
               try {
@@ -61,16 +74,20 @@ import frc.robot.subsystems.wrist.WristSubsystem;
     var stopMotors =
         Commands.parallel(
             Commands.runOnce(intake::stop, intake),
-            Commands.runOnce(endEffector::stop, endEffector));
+            Commands.runOnce(claw::stop, claw));
 
     return Commands.sequence(
-            setMode,
+            setCoralMode,
             // Use a deadline group so motors run while approaching intake height,
             // but the group exits as soon as the sensor trips. Then clear sim flag.
-            Commands.deadline(moveToIntakeUntilTripped, runIntake, runEndEffector)
-                .andThen(clearSimAfterTrip),
-            moveDown,
-            stopMotors)
+            Commands.deadline(moveToIntakeUntilTripped, 
+              Commands.parallel
+                (ClawCommands.runRollers(
+                claw, SubsystemConstants.ClawVoltages.CORAL_INTAKE),
+                CoralIntakeSubsystem.runIntake(volts))
+              .andThen(clearSimTrip),
+                moveDown,
+                stopMotors)
         .finallyDo(
             interrupted -> {
               try {
@@ -78,7 +95,7 @@ import frc.robot.subsystems.wrist.WristSubsystem;
               } catch (Exception ignored) {
               }
               try {
-                endEffector.stop();
+                claw.stop();
               } catch (Exception ignored) {
               }
               // If canceled (e.g., second press), clear mode and any sim-detected state
@@ -93,7 +110,7 @@ import frc.robot.subsystems.wrist.WristSubsystem;
                 }
               }
             })
-        .withName("Intake Coral");
+        .withName("Intake Coral"));
   }
 
   /**
@@ -176,6 +193,58 @@ import frc.robot.subsystems.wrist.WristSubsystem;
     return Commands.sequence(
       intermediateposition, reachTargets);
   }
+
+    /**
+   * Intake algae at a given duty cycle until a current spike is detected for a sustained period. On
+   * detection, stops the motor and sets the global game piece mode to ALGAE.
+   */
+  // public static Command intakeAlgae(
+  //   ClawSubsystem claw,
+  //   double volts,
+  //   double rampS,
+  //   double timeoutS) {
+  //   return intakeAlgae(claw, volts, rampS, timeoutS, DEFAULT_ALGAE_TRIP_CURRENT_AMPS, 
+  //   DEFAULT_ALGAE_DEBOUNCE_S, ClawSubsystem.algaeTripSubscriber);
+  // }
+  /**
+   * Intake algae with current trip and debounce
+   *
+   * @param volts 
+   * @param tripCurrentAmps Current threshold in amps considered as "algae engaged"
+   * @param debounceSeconds Time that current must remain above threshold to count as engaged
+   */
+  public static Command intakeAlgae(
+    ClawSubsystem claw,
+    double volts, 
+    double rampS,
+    double timeoutS,
+    double tripCurrentAmps, 
+    double debounceSeconds,
+    BooleanSupplier forceTrip) {
+
+      Debouncer debouncer = new Debouncer(debounceSeconds);
+      Timer ignoreTimer = new Timer();
+      ignoreTimer.restart();
+
+      return ClawCommands.runRollers(claw, ClawVoltages.ALGAE_INTAKE)
+          .until(() -> {
+              // Refresh the stator current once per loop, then read
+              var stator = claw.clawMotor.getStatorCurrent();
+              BaseStatusSignal.refreshAll(stator);
+              double amps = stator.getValueAsDouble();
+
+              boolean aboveThreshhold =
+                  ignoreTimer.hasElapsed(DEFAULT_START_IGNORE_S) 
+                  && amps >= tripCurrentAmps;
+              return debouncer.calculate(aboveThreshhold) || forceTrip.getAsBoolean();
+            })
+          .andThen(claw.holdAlgae())
+          .andThen(Commands.runOnce(() -> GamePiece.setMode(GamePiece.Mode.ALGAE)))
+          .withName(
+              String.format(
+                  "EndEffector intakeAlgae (V=%.1f, trip=%.1fA, debounce=%.2fs)",
+                  volts, tripCurrentAmps, debounceSeconds));
+    }
 
 
   /**

@@ -2,6 +2,10 @@ package frc.robot.subsystems;
 
 import static edu.wpi.first.units.Units.Degrees;
 import static edu.wpi.first.units.Units.Inches;
+import static edu.wpi.first.units.Units.Seconds;
+import static edu.wpi.first.units.Units.Volts;
+import edu.wpi.first.units.measure.Time;
+import edu.wpi.first.units.measure.Voltage;
 
 import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.units.measure.Distance;
@@ -16,9 +20,43 @@ public class SubsystemConstants {
   public static final int EndEffector_ID = 20; // Kraken X60 on Talon FX
   public static final int CANANDCOLOR_ID = 22; // Redux Phosphorus CANandcolor sensor
 
-  // Default voltages for intake sequence (percent output, [-1, 1])
-  public static final double DEFAULT_CORAL_INTAKE_SPEED = 8;
-  public static final double DEFAULT_ALGAE_INTAKE_SPEED = 12;
+  // voltages, ramp rates, and timeouts for claw rollers
+  public static enum ClawVoltages {
+    DEFAULT(Volts.of(0), Seconds.of(0), Seconds.of(0)),
+    CORAL_INTAKE(Volts.of(0), Seconds.of(0), Seconds.of(0)),
+    ALGAE_INTAKE(Volts.of(0), Seconds.of(0), Seconds.of(0)),
+
+    CORAL_SCORE_L1(Volts.of(0), Seconds.of(0), Seconds.of(0)),
+    CORAL_SCORE_L2(Volts.of(0), Seconds.of(0), Seconds.of(0)),
+    CORAL_SCORE_L3(Volts.of(0), Seconds.of(0), Seconds.of(0)),
+    CORAL_SCORE_L4(Volts.of(0), Seconds.of(0), Seconds.of(0)),
+
+    ALGAE_PROCESSOR(Volts.of(0), Seconds.of(0), Seconds.of(0)),
+    ALGAE_NET(Volts.of(0), Seconds.of(0), Seconds.of(0));
+
+    private final Voltage volts;
+    private final Time rampS;
+    private final Time timeoutS;
+
+    ClawVoltages(Voltage volts, Time rampS, Time timeoutS) {
+      this.volts = volts;
+      this.rampS = rampS;
+      this.timeoutS = timeoutS;
+    }
+
+    public Voltage volts() {
+      return volts;}
+    public Time rampS() {
+      return rampS;}
+    public Time timeoutS(){
+      return timeoutS;}
+    public boolean hasDefaultTimeout() {
+      return timeoutS.gt(Seconds.of(0));}
+
+    }
+  
+
+
 
   // Coral sensor thresholds/settings
   // proximity increases as objects move away; closer => smaller value

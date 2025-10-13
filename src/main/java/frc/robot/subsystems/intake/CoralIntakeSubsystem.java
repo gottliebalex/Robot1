@@ -12,20 +12,20 @@ import frc.robot.subsystems.SubsystemConstants;
  * duty cycle control.
  */
 public class CoralIntakeSubsystem extends SubsystemBase {
-  private final TalonFXS motor =
+  private static final TalonFXS intakeMotor =
       new TalonFXS(SubsystemConstants.CoralIntake_ID, SubsystemConstants.CANBUS);
-  private final DutyCycleOut dutyOut = new DutyCycleOut(0.0);
+  //private final DutyCycleOut dutyOut = new DutyCycleOut(0.0);
 
   public CoralIntakeSubsystem() {}
 
   /** Run intake at a duty cycle percent [-1, 1] while scheduled. */
-  public Command runDuty(double percent) {
-    return Commands.run(() -> motor.setControl(dutyOut.withOutput(percent)), this)
-        .withName("CoralIntake runDuty(" + percent + ")");
+  public static Command runIntake(double volts) {
+    return Commands.run(() -> intakeMotor.setVoltage(8))
+        .withName("CoralIntake runDuty(" + volts + ")");
   }
 
   /** Stop the intake motor. */
   public void stop() {
-    motor.setControl(dutyOut.withOutput(0.0));
+    intakeMotor.setVoltage(0);
   }
 }

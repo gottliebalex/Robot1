@@ -22,6 +22,7 @@ import com.pathplanner.lib.util.FlippingUtil;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.networktables.BooleanTopic;
+import edu.wpi.first.networktables.BooleanPublisher;
 import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.wpilibj.GenericHID;
 import edu.wpi.first.wpilibj.XboxController;
@@ -32,6 +33,7 @@ import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.button.JoystickButton;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine;
 import frc.robot.FieldConstants.Reef.PipeSide;
+import frc.robot.commands.ClawCommands;
 import frc.robot.commands.DriveCommands;
 import frc.robot.commands.ElevatorCommands;
 import frc.robot.commands.IntakeCommands;
@@ -47,7 +49,7 @@ import frc.robot.subsystems.drive.ModuleIO;
 import frc.robot.subsystems.drive.ModuleIOSim;
 import frc.robot.subsystems.drive.ModuleIOTalonFX;
 import frc.robot.subsystems.elevator.ElevatorSubsystem;
-import frc.robot.subsystems.endeffector.EndEffectorSubsystem;
+import frc.robot.subsystems.claw.ClawSubsystem;
 import frc.robot.subsystems.intake.CoralIntakeSubsystem;
 import frc.robot.subsystems.vision.Vision;
 import frc.robot.subsystems.vision.VisionIO;
@@ -58,6 +60,9 @@ import java.util.HashMap;
 import java.util.Map;
 import org.littletonrobotics.junction.networktables.LoggedDashboardChooser;
 import org.littletonrobotics.junction.networktables.LoggedNetworkNumber;
+import org.littletonrobotics.junction.networktables.LoggedDashboardBoolean;
+import org.littletonrobotics.junction.networktables.LoggedNetworkBoolean;
+
 
 /**
  * This class is where the bulk of the robot should be declared. Since Command-based is a
@@ -72,7 +77,7 @@ public class RobotContainer {
   private final ElevatorSubsystem elevator;
   private final WristSubsystem wrist;
   private final CoralIntakeSubsystem coralIntake;
-  private final EndEffectorSubsystem endEffector;
+  private final ClawSubsystem claw;
   private final CoralSensor coralSensor;
 
   // Controller
@@ -122,7 +127,7 @@ public class RobotContainer {
         elevator = new ElevatorSubsystem();
         wrist = new WristSubsystem();
         coralIntake = new CoralIntakeSubsystem();
-        endEffector = new EndEffectorSubsystem();
+        claw = new ClawSubsystem();
         coralSensor = new CoralSensor(SubsystemConstants.CANANDCOLOR_ID);
         break;
 
@@ -144,8 +149,22 @@ public class RobotContainer {
         elevator = new ElevatorSubsystem();
         wrist = new WristSubsystem();
         coralIntake = new CoralIntakeSubsystem();
-        endEffector = new EndEffectorSubsystem();
+        claw = new ClawSubsystem();
         coralSensor = new CoralSensor(SubsystemConstants.CANANDCOLOR_ID);
+
+        // SIM-ONLY: Elastic toggle to force algae trip for intake
+        LoggedNetworkBoolean simForceAlgaeTripToggle =
+            new LoggedNetworkBoolean("Sim/Force Algae Trip", false);
+        BooleanTopic forceAlgaeTripTopic =
+            NetworkTableInstance.getDefault().getBooleanTopic("/Sim/ForceAlgaeTrip");
+        BooleanPublisher forceAlgaeTripPublisher = forceAlgaeTripTopic.publish();
+        forceAlgaeTripPublisher.set(false);
+        // Mirror the Elastic toggle to the NT topic each loop (ignores disable)
+        CommandScheduler.getInstance()
+            .schedule(
+                Commands.run(
+                        () -> forceAlgaeTripPublisher.set(simForceAlgaeTripToggle.get()))
+                    .ignoringDisable(true));
         break;
 
       default:
@@ -162,7 +181,7 @@ public class RobotContainer {
         elevator = null;
         wrist = null;
         coralIntake = null;
-        endEffector = null;
+        claw = null;
         coralSensor = new CoralSensor();
         break;
     }
@@ -352,8 +371,11 @@ public class RobotContainer {
                     int lvl = getSelectedReefLevel();
                     if (lvl < 2) lvl = 2;
                     if (lvl > 4) lvl = 4;
-                    return ScoreCommands.scoreReefLevel(
-                        drive, endEffector, elevator, wrist, lvl, PipeSide.LEFT);
+                    return ScoreCommands.scoreReefLevelSCorNOT(
+                      drive, elevator, wrist, claw,
+                      4, SCmode, PipeSide.LEFT,
+                      volts, rampS, timeoutS, 
+                      debounceSeconds, tripCurrentAmps, forceTrip);
                   },
                   java.util.Set.of(drive, elevator, wrist)));
       controller
@@ -365,23 +387,23 @@ public class RobotContainer {
                     if (lvl < 2) lvl = 2;
                     if (lvl > 4) lvl = 4;
                     return ScoreCommands.scoreReefLevel(
-                        drive, endEffector, elevator, wrist, lvl, PipeSide.RIGHT);
+                        drive, claw, elevator, wrist, lvl, PipeSide.RIGHT);
                   },
                   java.util.Set.of(drive, elevator, wrist)));
 
       // Y button: run reef algae intake (L2/L3 based on selected level)
-      controller
-          .y()
-          .onTrue(
-              Commands.defer(
-                  () -> {
-                    int lvl = 
-                    return frc.robot.commands.IntakeCommands.intakeReefAlgae(
-                        drive, endEffector, elevator, wrist, lvl);
-                  },
-                  java.util.Set.of(drive, endEffector, elevator, wrist)));
+      // controller
+      //     .y()
+      //     .onTrue(
+      //         Commands.defer(
+      //             () -> {
+      //               int lvl = 
+      //               return frc.robot.commands.IntakeCommands.intakeReefAlgae(
+      //                   drive, endEffector, elevator, wrist, lvl);
+      //             },
+      //             java.util.Set.of(drive, endEffector, elevator, wrist)));
+      
       // Cancel button
-
       controller
           .povDown()
           .onTrue(
@@ -397,16 +419,17 @@ public class RobotContainer {
       new JoystickButton(apacController, 13).onTrue(ElevatorCommands.L3Score(elevator));
 
       // Coral intake sequence and simulation helper
-      if (coralIntake != null && endEffector != null) {
+      if (coralIntake != null && claw != null) {
         new JoystickButton(apacController, 1)
             .toggleOnTrue(
                 IntakeCommands.intakeCoral(
                         coralIntake,
-                        endEffector,
+                        claw,
                         elevator,
                         coralSensor,
-                        SubsystemConstants.DEFAULT_CORAL_INTAKE_SPEED,
-                        SubsystemConstants.DEFAULT_END_EFFECTOR_SPEED)
+                        volts,
+                        SubsystemConstants.ClawVoltages.CORAL_INTAKE
+                        )
                     .withName("Intake Coral"));
 
         // Simulate sensor trip (toggles SmartDashboard Sim/CoralDetected briefly)

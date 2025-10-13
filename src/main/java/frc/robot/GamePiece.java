@@ -1,6 +1,7 @@
 package frc.robot;
 
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import org.littletonrobotics.junction.Logger;
+import org.littletonrobotics.junction.networktables.LoggedNetworkBoolean;
 
 /** Global game piece state for simple mode selection (e.g., CORAL vs ALGAE). */
 public final class GamePiece {
@@ -13,11 +14,14 @@ public final class GamePiece {
   }
 
   private static volatile Mode current = Mode.NONE;
-  private static volatile boolean supercycleEnabled = false;
+
+  // Logged + networked toggle
+  private static final LoggedNetworkBoolean supercycleToggle =
+      new LoggedNetworkBoolean("Autopilot/Supercycle", false);
 
   public static void setMode(Mode mode) {
     current = mode;
-    SmartDashboard.putString("GamePieceMode", current.name());
+    Logger.recordOutput("GamePiece/Mode", current.name());
   }
 
   public static Mode getMode() {
@@ -29,16 +33,11 @@ public final class GamePiece {
   }
 
   // Supercycle (align to algae SC standoff when scoring coral)
-  public static void setSupercycleEnabled(boolean enabled) {
-    supercycleEnabled = enabled;
-    SmartDashboard.putBoolean("SupercycleEnabled", supercycleEnabled);
-  }
+  public static void setSupercycleEnabled(boolean enabled) { supercycleToggle.set(enabled); }
 
-  public static boolean isSupercycleEnabled() {
-    return supercycleEnabled;
-  }
+  public static boolean isSupercycleEnabled() { return supercycleToggle.get(); }
 
   public static void toggleSupercycle() {
-    setSupercycleEnabled(!supercycleEnabled);
+    setSupercycleEnabled(!isSupercycleEnabled());
   }
 }
