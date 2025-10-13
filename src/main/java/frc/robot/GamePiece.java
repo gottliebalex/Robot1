@@ -33,9 +33,13 @@ public final class GamePiece {
   }
 
   // Supercycle (align to algae SC standoff when scoring coral)
-  public static void setSupercycleEnabled(boolean enabled) { supercycleToggle.set(enabled); }
+  public static void setSupercycleEnabled(boolean enabled) {
+    supercycleToggle.set(enabled);
+  }
 
-  public static boolean isSupercycleEnabled() { return supercycleToggle.get(); }
+  public static boolean isSupercycleEnabled() {
+    return supercycleToggle.get();
+  }
 
   public static void toggleSupercycle() {
     setSupercycleEnabled(!isSupercycleEnabled());

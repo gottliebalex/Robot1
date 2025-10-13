@@ -7,8 +7,6 @@ import edu.wpi.first.apriltag.AprilTagFields;
 import edu.wpi.first.math.geometry.*;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
-import us.hebi.quickbuf.RepeatedString;
-
 import java.util.EnumMap;
 import java.util.Map;
 
@@ -58,7 +56,6 @@ public class FieldConstants {
       RIGHT,
       CENTER
     }
-
 
     /** Scoring & supercycle levels for precomputation using EnumMap. */
     public enum Level {
@@ -118,21 +115,21 @@ public class FieldConstants {
 
     private static record AlgaePlacement(Level level, PipeSide side) {}
 
-    private static final EnumMap<Branch, AlgaePlacement> GrabALGAE_PLACEMENT = 
-      new EnumMap<>(Branch.class);
+    private static final EnumMap<Branch, AlgaePlacement> GrabALGAE_PLACEMENT =
+        new EnumMap<>(Branch.class);
 
-    private static final EnumMap<Branch, AlgaePlacement> SCALGAE_PLACEMENT = 
-      new EnumMap<>(Branch.class);
+    private static final EnumMap<Branch, AlgaePlacement> SCALGAE_PLACEMENT =
+        new EnumMap<>(Branch.class);
 
     /** Standoff per level, negative moves robot *toward* the reef along the face normal. */
     public static final double STANDOFF_L1 = 0.4;
+
     public static final double STANDOFF_L2 = 0.45;
     public static final double STANDOFF_L3 = STANDOFF_L2;
     public static final double STANDOFF_L4 = 0.65;
     public static final double STANDOFF_SC_ALGAE = 0.4;
     public static final double STANDOFF_GRABALGAE = 0.40;
 
-    
     static {
       // Define hexagon around +X and go clockwise every 60°
       Rotation2d[] normals = {
@@ -234,12 +231,8 @@ public class FieldConstants {
         }
       }
 
-  
-
       // Initialize current views to the cached alliance once
       onAllianceUpdated(FieldConstants.getAllianceCached());
-
-
 
       GrabALGAE_PLACEMENT.put(Branch.A, new AlgaePlacement(Level.L2GrabAlgae, PipeSide.CENTER));
       GrabALGAE_PLACEMENT.put(Branch.B, new AlgaePlacement(Level.L3GrabAlgae, PipeSide.CENTER));
@@ -255,8 +248,6 @@ public class FieldConstants {
       SCALGAE_PLACEMENT.put(Branch.E, new AlgaePlacement(Level.L2SCAlgae, PipeSide.CENTER));
       SCALGAE_PLACEMENT.put(Branch.F, new AlgaePlacement(Level.L3SCAlgae, PipeSide.CENTER));
     }
-
-    
 
     /** Returns the BLUE-reference face-center pose (position + facing) for a branch. */
     public static Pose2d blueFacePose(Branch branch) {
@@ -290,7 +281,7 @@ public class FieldConstants {
       // we should look into using alliancefliputil
     }
 
-    public static AlgaePlacement getAlgaePlacement(Branch branch){
+    public static AlgaePlacement getAlgaePlacement(Branch branch) {
       return GrabALGAE_PLACEMENT.get(branch);
     }
 
@@ -299,11 +290,10 @@ public class FieldConstants {
     }
 
     /**
-     * Returns the algae pose for a given branch using the desired mode.
-     * Automatically selects the algae level (L2/L3) and side based on the
-     * configured per-face placement maps (GrabALGAE_PLACEMENT / SCALGAE_PLACEMENT).
-     * The provided {@code level} is only used as a fallback if a placement is
-     * missing for the branch.
+     * Returns the algae pose for a given branch using the desired mode. Automatically selects the
+     * algae level (L2/L3) and side based on the configured per-face placement maps
+     * (GrabALGAE_PLACEMENT / SCALGAE_PLACEMENT). The provided {@code level} is only used as a
+     * fallback if a placement is missing for the branch.
      */
     public static Pose2d algaePose(Branch branch, Level level, AlgaeMode algaemode) {
       // Choose the configured placement (level + side) for this face and mode
@@ -313,21 +303,19 @@ public class FieldConstants {
               : GrabALGAE_PLACEMENT.get(branch);
 
       if (placement != null) {
-        return CURRENT_SCORING_SIDE
-            .get(branch)
-            .get(placement.level())
-            .get(placement.side());
+        return CURRENT_SCORING_SIDE.get(branch).get(placement.level()).get(placement.side());
       }
 
       // Fallback: derive an appropriate algae level from the input
-      Level derived = switch (algaemode) {
-        case SUPERCYCLE -> (level == Level.L3 || level == Level.L3SCAlgae)
-            ? Level.L3SCAlgae
-            : Level.L2SCAlgae;
-        case GRAB -> (level == Level.L3 || level == Level.L3GrabAlgae)
-            ? Level.L3GrabAlgae
-            : Level.L2GrabAlgae;
-      };
+      Level derived =
+          switch (algaemode) {
+            case SUPERCYCLE -> (level == Level.L3 || level == Level.L3SCAlgae)
+                ? Level.L3SCAlgae
+                : Level.L2SCAlgae;
+            case GRAB -> (level == Level.L3 || level == Level.L3GrabAlgae)
+                ? Level.L3GrabAlgae
+                : Level.L2GrabAlgae;
+          };
 
       return CURRENT_SCORING_SIDE.get(branch).get(derived).get(PipeSide.CENTER);
     }
@@ -343,10 +331,7 @@ public class FieldConstants {
         Level fallback = (algaemode == AlgaeMode.SUPERCYCLE) ? Level.L2SCAlgae : Level.L2GrabAlgae;
         return CURRENT_SCORING_SIDE.get(branch).get(fallback).get(PipeSide.CENTER);
       }
-      return CURRENT_SCORING_SIDE
-          .get(branch)
-          .get(placement.level())
-          .get(placement.side());
+      return CURRENT_SCORING_SIDE.get(branch).get(placement.level()).get(placement.side());
     }
 
     /** Returns the base algae level (2 or 3) for the given branch and mode. */
@@ -373,7 +358,8 @@ public class FieldConstants {
     public static Pose2d algaePose(Branch branch, int level, AlgaeStandoff standoff) {
       // Map coral level int to base Level (algae uses L2/L3 only)
       Level base = (level <= 2) ? Level.L2 : Level.L3;
-      AlgaeMode mode = (standoff == AlgaeStandoff.SUPERCYCLE) ? AlgaeMode.SUPERCYCLE : AlgaeMode.GRAB;
+      AlgaeMode mode =
+          (standoff == AlgaeStandoff.SUPERCYCLE) ? AlgaeMode.SUPERCYCLE : AlgaeMode.GRAB;
       return algaePose(branch, base, mode);
     }
     /*
@@ -426,8 +412,6 @@ public class FieldConstants {
       GRAB
     }
 
-   
-
     /*Finds the nearest reef branch (by face center) to a given field pose
      */
     public static Branch nearestBranch(Pose2d robotPose) {
@@ -470,7 +454,6 @@ public class FieldConstants {
       CURRENT_FACE_POSES = isRed ? FACE_POSES_RED : FACE_POSES_BLUE;
       CURRENT_SCORING_NO_SIDE = isRed ? SCORING_NO_SIDE_RED : SCORING_NO_SIDE_BLUE;
       CURRENT_SCORING_SIDE = isRed ? SCORING_SIDE_RED : SCORING_SIDE_BLUE;
-
     }
 
     private static Pose2d allianceFlip(Pose2d bluePose) {

@@ -1,38 +1,34 @@
 package frc.robot.commands;
 
-import java.util.function.BooleanSupplier;
-
 import com.ctre.phoenix6.BaseStatusSignal;
-
 import edu.wpi.first.math.filter.Debouncer;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.DeferredCommand;
 import frc.robot.FieldConstants;
-import frc.robot.FieldConstants.Reef.PipeSide;
 import frc.robot.FieldConstants.Reef.AlgaeMode;
+import frc.robot.FieldConstants.Reef.PipeSide;
 import frc.robot.GamePiece;
 import frc.robot.sensors.CoralSensor;
 import frc.robot.subsystems.SubsystemConstants;
 import frc.robot.subsystems.SubsystemConstants.ClawVoltages;
+import frc.robot.subsystems.claw.ClawSubsystem;
 import frc.robot.subsystems.drive.Drive;
 import frc.robot.subsystems.elevator.ElevatorSubsystem;
-import frc.robot.subsystems.claw.ClawSubsystem;
 import frc.robot.subsystems.intake.CoralIntakeSubsystem;
 import frc.robot.subsystems.wrist.WristSubsystem;
-import frc.robot.commands.ClawCommands;
+import java.util.function.BooleanSupplier;
 
 /** Composite commands for intaking coral and algae. */
-  public final class IntakeCommands {
-      // algae detection
-    private static final double DEFAULT_ALGAE_TRIP_CURRENT_AMPS = 25.0;
-    private static final double DEFAULT_ALGAE_DEBOUNCE_S = 0.10;
-    private static final double DEFAULT_START_IGNORE_S = 0.15;  
+public final class IntakeCommands {
+  // algae detection
+  private static final double DEFAULT_ALGAE_TRIP_CURRENT_AMPS = 25.0;
+  private static final double DEFAULT_ALGAE_DEBOUNCE_S = 0.10;
+  private static final double DEFAULT_START_IGNORE_S = 0.15;
 
-    //private final ClawSubsystem claw;
-    //private final ClawSubsystem claw;
-     
+  // private final ClawSubsystem claw;
+  // private final ClawSubsystem claw;
 
   /**
    * Intake coral: runs intake and end effector at specified speeds, moves elevator to intake height
@@ -47,14 +43,22 @@ import frc.robot.commands.ClawCommands;
       double volts,
       double intakeSpeed) {
 
-      
-      var setCoralMode = ClawCommands.setCoralMode();
-      var intakeHeight = SubsystemConstants.ElevatorPosition.Intake.distance();
-      var stowHeight = SubsystemConstants.ElevatorPosition.Down.distance(); 
+    var setCoralMode = ClawCommands.setCoralMode();
+    var intakeHeight = SubsystemConstants.ElevatorPosition.Intake.distance();
+    var stowHeight = SubsystemConstants.ElevatorPosition.Down.distance();
 
-    // Move to intake height while motors run until sensor trips
-    var moveToIntakeUntilTripped =
-        Commands.deadline(Commands.waitUntil(sensor::isTripped), elevator.setHeight(intakeHeight));
+    // Motors to run during intake
+    var runMotors =
+        Commands.parallel(
+            ClawCommands.runRollers(claw, SubsystemConstants.ClawVoltages.CORAL_INTAKE),
+            CoralIntakeSubsystem.runIntake(intake, volts));
+
+    // Drive elevator toward intake height; completes when sensor trips (deadline)
+    var approachUntilTripped =
+        Commands.deadline(
+            Commands.waitUntil(sensor::isTripped), // deadline
+            runMotors,
+            elevator.setHeight(intakeHeight));
     // After trip, ensure sim flag is cleared so it doesn't latch in SIM
     var clearSimTrip =
         Commands.runOnce(
@@ -73,21 +77,16 @@ import frc.robot.commands.ClawCommands;
 
     var stopMotors =
         Commands.parallel(
-            Commands.runOnce(intake::stop, intake),
-            Commands.runOnce(claw::stop, claw));
+            Commands.runOnce(intake::stop, intake), Commands.runOnce(claw::stop, claw));
 
     return Commands.sequence(
             setCoralMode,
-            // Use a deadline group so motors run while approaching intake height,
-            // but the group exits as soon as the sensor trips. Then clear sim flag.
-            Commands.deadline(moveToIntakeUntilTripped, 
-              Commands.parallel
-                (ClawCommands.runRollers(
-                claw, SubsystemConstants.ClawVoltages.CORAL_INTAKE),
-                CoralIntakeSubsystem.runIntake(volts))
-              .andThen(clearSimTrip),
-                moveDown,
-                stopMotors)
+            // Run motors and move elevator toward intake height until sensor trips
+            approachUntilTripped,
+            // After trip, stop motors, clear sim flag, then stow elevator
+            stopMotors,
+            clearSimTrip,
+            moveDown)
         .finallyDo(
             interrupted -> {
               try {
@@ -108,45 +107,49 @@ import frc.robot.commands.ClawCommands;
                   sensor.setSimTripped(false);
                 } catch (Exception ignored) {
                 }
+              } else {
+                GamePiece.setMode(GamePiece.Mode.CORAL);
               }
             })
-        .withName("Intake Coral"));
+        .withName("Intake Coral");
   }
 
   /**
-   * Approach algae at the nearest reef face using either SUPERCYCLE or GRAB standoff.
-   * Sets elevator and wrist to appropriate mode-specific setpoints while aligning.
+   * Approach algae at the nearest reef face using either SUPERCYCLE or GRAB standoff. Sets elevator
+   * and wrist to appropriate mode-specific setpoints while aligning.
    */
   public static Command approachReefAlgae(
       Drive drive, ElevatorSubsystem elevator, WristSubsystem wrist, AlgaeMode mode) {
     return new DeferredCommand(
-        () -> {
-          var nearest = FieldConstants.Reef.nearestBranch(drive.getPose());
-          int baseLevel = FieldConstants.Reef.algaeBaseLevel(nearest, mode); // 2 or 3
+            () -> {
+              var nearest = FieldConstants.Reef.nearestBranch(drive.getPose());
+              int baseLevel = FieldConstants.Reef.algaeBaseLevel(nearest, mode); // 2 or 3
 
-          var elevatorTarget =
-              (mode == AlgaeMode.GRAB)
-                  ? (baseLevel == 2
-                      ? SubsystemConstants.ElevatorPosition.L2GrabAlgae.distance()
-                      : SubsystemConstants.ElevatorPosition.L3GrabAlgae.distance())
-                  : (baseLevel == 2
-                      ? SubsystemConstants.ElevatorPosition.L2.distance()
-                      : SubsystemConstants.ElevatorPosition.L3.distance());
+              var elevatorTarget =
+                  (mode == AlgaeMode.GRAB)
+                      ? (baseLevel == 2
+                          ? SubsystemConstants.ElevatorPosition.L2GrabAlgae.distance()
+                          : SubsystemConstants.ElevatorPosition.L3GrabAlgae.distance())
+                      : (baseLevel == 2
+                          ? SubsystemConstants.ElevatorPosition.L2.distance()
+                          : SubsystemConstants.ElevatorPosition.L3.distance());
 
-          var wristTarget =
-              (mode == AlgaeMode.GRAB)
-                  ? SubsystemConstants.WristPosition.ReefGrabAlgae.angle()
-                  : SubsystemConstants.WristPosition.ReefSCAlgae.angle();
+              var wristTarget =
+                  (mode == AlgaeMode.GRAB)
+                      ? SubsystemConstants.WristPosition.ReefGrabAlgae.angle()
+                      : SubsystemConstants.WristPosition.ReefSCAlgae.angle();
 
-          Command align = DriveCommands.alignToNearestAlgaePose(drive, mode);
+              Command align = DriveCommands.alignToNearestAlgaePose(drive, mode);
 
-          return Commands.parallel(
-              align,
-              Commands.deadline(
-                  elevator.waitUntilAtHeight(elevatorTarget), elevator.setHeight(elevatorTarget)),
-              Commands.deadline(wrist.waitUntilAtAngle(wristTarget), wrist.setAngle(wristTarget)));
-        },
-        java.util.Set.of(drive, elevator, wrist))
+              return Commands.parallel(
+                  align,
+                  Commands.deadline(
+                      elevator.waitUntilAtHeight(elevatorTarget),
+                      elevator.setHeight(elevatorTarget)),
+                  Commands.deadline(
+                      wrist.waitUntilAtAngle(wristTarget), wrist.setAngle(wristTarget)));
+            },
+            java.util.Set.of(drive, elevator, wrist))
         .withName("Approach Reef Algae (" + mode + ")");
   }
 
@@ -185,16 +188,16 @@ import frc.robot.commands.ClawCommands;
             alignCmd,
             Commands.deadline(
                 wrist.waitUntilAtAngle(wristIntermediate), wrist.setAngle(wristIntermediate)));
-    Command reachTargets = 
+    Command reachTargets =
         Commands.parallel(
-          Commands.deadline(elevator.waitUntilAtHeight(eleVatorTarget), elevator.setHeight(eleVatorTarget)),
-          Commands.deadline(wrist.waitUntilAtAngle(wristTarget), wrist.setAngle(wristTarget)));
+            Commands.deadline(
+                elevator.waitUntilAtHeight(eleVatorTarget), elevator.setHeight(eleVatorTarget)),
+            Commands.deadline(wrist.waitUntilAtAngle(wristTarget), wrist.setAngle(wristTarget)));
 
-    return Commands.sequence(
-      intermediateposition, reachTargets);
+    return Commands.sequence(intermediateposition, reachTargets);
   }
 
-    /**
+  /**
    * Intake algae at a given duty cycle until a current spike is detected for a sustained period. On
    * detection, stops the motor and sets the global game piece mode to ALGAE.
    */
@@ -203,49 +206,46 @@ import frc.robot.commands.ClawCommands;
   //   double volts,
   //   double rampS,
   //   double timeoutS) {
-  //   return intakeAlgae(claw, volts, rampS, timeoutS, DEFAULT_ALGAE_TRIP_CURRENT_AMPS, 
+  //   return intakeAlgae(claw, volts, rampS, timeoutS, DEFAULT_ALGAE_TRIP_CURRENT_AMPS,
   //   DEFAULT_ALGAE_DEBOUNCE_S, ClawSubsystem.algaeTripSubscriber);
   // }
   /**
    * Intake algae with current trip and debounce
    *
-   * @param volts 
+   * @param volts
    * @param tripCurrentAmps Current threshold in amps considered as "algae engaged"
    * @param debounceSeconds Time that current must remain above threshold to count as engaged
    */
   public static Command intakeAlgae(
-    ClawSubsystem claw,
-    double volts, 
-    double rampS,
-    double timeoutS,
-    double tripCurrentAmps, 
-    double debounceSeconds,
-    BooleanSupplier forceTrip) {
+      ClawSubsystem claw,
+      ClawVoltages voltages,
+      double tripCurrentAmps,
+      double debounceSeconds,
+      BooleanSupplier forceTrip) {
 
-      Debouncer debouncer = new Debouncer(debounceSeconds);
-      Timer ignoreTimer = new Timer();
-      ignoreTimer.restart();
+    Debouncer debouncer = new Debouncer(debounceSeconds, Debouncer.DebounceType.kRising);
+    Timer ignoreTimer = new Timer();
+    ignoreTimer.restart();
 
-      return ClawCommands.runRollers(claw, ClawVoltages.ALGAE_INTAKE)
-          .until(() -> {
+    return ClawCommands.runRollers(claw, ClawVoltages.ALGAE_INTAKE)
+        .until(
+            () -> {
               // Refresh the stator current once per loop, then read
               var stator = claw.clawMotor.getStatorCurrent();
               BaseStatusSignal.refreshAll(stator);
               double amps = stator.getValueAsDouble();
 
               boolean aboveThreshhold =
-                  ignoreTimer.hasElapsed(DEFAULT_START_IGNORE_S) 
-                  && amps >= tripCurrentAmps;
+                  ignoreTimer.hasElapsed(DEFAULT_START_IGNORE_S) && amps >= tripCurrentAmps;
               return debouncer.calculate(aboveThreshhold) || forceTrip.getAsBoolean();
             })
-          .andThen(claw.holdAlgae())
-          .andThen(Commands.runOnce(() -> GamePiece.setMode(GamePiece.Mode.ALGAE)))
-          .withName(
-              String.format(
-                  "EndEffector intakeAlgae (V=%.1f, trip=%.1fA, debounce=%.2fs)",
-                  volts, tripCurrentAmps, debounceSeconds));
-    }
-
+        .andThen(claw.holdAlgae())
+        .andThen(Commands.runOnce(() -> GamePiece.setMode(GamePiece.Mode.ALGAE)))
+        .withName(
+            String.format(
+                "EndEffector intakeAlgae (V=%.1f, trip=%.1fA, debounce=%.2fs)",
+                voltages.volts(), tripCurrentAmps, debounceSeconds));
+  }
 
   /**
    * Intake algae from the reef at L2/L3: align to approach standoff, move mechanisms to targets,

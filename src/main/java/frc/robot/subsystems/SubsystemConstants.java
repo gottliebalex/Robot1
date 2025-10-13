@@ -4,11 +4,11 @@ import static edu.wpi.first.units.Units.Degrees;
 import static edu.wpi.first.units.Units.Inches;
 import static edu.wpi.first.units.Units.Seconds;
 import static edu.wpi.first.units.Units.Volts;
-import edu.wpi.first.units.measure.Time;
-import edu.wpi.first.units.measure.Voltage;
 
 import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.units.measure.Distance;
+import edu.wpi.first.units.measure.Time;
+import edu.wpi.first.units.measure.Voltage;
 
 public class SubsystemConstants {
   public static final String CANBUS = "rio";
@@ -45,18 +45,24 @@ public class SubsystemConstants {
     }
 
     public Voltage volts() {
-      return volts;}
-    public Time rampS() {
-      return rampS;}
-    public Time timeoutS(){
-      return timeoutS;}
-    public boolean hasDefaultTimeout() {
-      return timeoutS.gt(Seconds.of(0));}
-
+      return volts;
     }
-  
 
+    public Time rampS() {
+      return rampS;
+    }
 
+    public Time timeoutS() {
+      return timeoutS;
+    }
+
+    public boolean hasDefaultTimeout() {
+      return timeoutS.gt(Seconds.of(0));
+    }
+  }
+
+  public static final double kAlgaeTripCurrent = 38.0;
+  public static final double kAlgaeDebounceS = 0.08;
 
   // Coral sensor thresholds/settings
   // proximity increases as objects move away; closer => smaller value
@@ -98,6 +104,7 @@ public class SubsystemConstants {
     ReefGrabAlgae(Degrees.of(35)),
     ReefSCAlgae(Degrees.of(-45)),
     GrabAlgaeIntermediate(Degrees.of(90)),
+    AlgaeTransit(Degrees.of(90)),
     Test(Degrees.of(-180));
 
     private final Angle angle;

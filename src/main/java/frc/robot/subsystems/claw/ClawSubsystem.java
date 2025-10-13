@@ -1,41 +1,24 @@
 package frc.robot.subsystems.claw;
 
-import static edu.wpi.first.units.Units.Volts;
-
-import java.io.ObjectInputFilter.Config;
-import java.util.function.BooleanSupplier;
-
-import com.ctre.phoenix6.BaseStatusSignal;
-import com.ctre.phoenix6.controls.DutyCycleOut;
+import com.ctre.phoenix6.configs.*;
 import com.ctre.phoenix6.controls.TorqueCurrentFOC;
 import com.ctre.phoenix6.hardware.TalonFX;
 import com.ctre.phoenix6.signals.InvertedValue;
 import com.ctre.phoenix6.signals.NeutralModeValue;
-import com.ctre.phoenix6.configs.*;
-import edu.wpi.first.math.filter.Debouncer;
 import edu.wpi.first.networktables.BooleanSubscriber;
 import edu.wpi.first.networktables.NetworkTableInstance;
-import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
-import frc.robot.GamePiece;
 import frc.robot.subsystems.SubsystemConstants;
-import frc.robot.subsystems.SubsystemConstants.ClawVoltages;
-
-import static edu.wpi.first.units.Units.Inches;
-import static edu.wpi.first.units.Units.Seconds;
-import static edu.wpi.first.units.Units.Volts;
-import edu.wpi.first.units.measure.Voltage;
-
+import java.util.function.BooleanSupplier;
 
 /** End effector subsystem using a Kraken X60 controlled by a Talon FX. */
 public class ClawSubsystem extends SubsystemBase {
   public final TalonFX clawMotor =
       new TalonFX(SubsystemConstants.EndEffector_ID, SubsystemConstants.CANBUS);
-  
+
   private final TalonFXConfigurator cfg = clawMotor.getConfigurator();
-  
+
   private final TalonFXConfiguration basecfg = new TalonFXConfiguration();
 
   private final TorqueCurrentFOC torqueHold = new TorqueCurrentFOC(35.0);
@@ -64,7 +47,7 @@ public class ClawSubsystem extends SubsystemBase {
     clawMotor.setVoltage(0);
   }
 
-  public void setOpenLoopRamp(double seconds){
+  public void setOpenLoopRamp(double seconds) {
     OpenLoopRampsConfigs olr = new OpenLoopRampsConfigs();
     olr.VoltageOpenLoopRampPeriod = seconds;
     clawMotor.getConfigurator().apply(olr);
@@ -75,9 +58,7 @@ public class ClawSubsystem extends SubsystemBase {
   }
 
   public static final BooleanSubscriber algaeTripSubscriber =
-    NetworkTableInstance.getDefault()
-        .getBooleanTopic("/Sim/ForceAlgaeTrip")
-        .subscribe(false);
+      NetworkTableInstance.getDefault().getBooleanTopic("/Sim/ForceAlgaeTrip").subscribe(false);
 
   public BooleanSupplier forceAlgaeTripSupplier() {
     return () -> algaeTripSubscriber.get();
@@ -85,12 +66,11 @@ public class ClawSubsystem extends SubsystemBase {
 
   // /** Run end effector at a voltage for intaking algae */
   // public Command runRollersAlgae(double volts) {
-  //   return Commands.run(() -> motor.setVoltage(SubsystemConstants.DEFAULT_ALGAE_INTAKE_SPEED), this)
+  //   return Commands.run(() -> motor.setVoltage(SubsystemConstants.DEFAULT_ALGAE_INTAKE_SPEED),
+  // this)
   //       .finallyDo(() -> stop())
   //       .withName(String.format("EndEffector runRollers", volts));
   // }
-
-
 
   // hold current (amps) for retaining algae
   private static final double DEFAULT_HOLD_CURRENT_AMPS = 6.0;
@@ -106,6 +86,4 @@ public class ClawSubsystem extends SubsystemBase {
             () -> clawMotor.setControl(torqueHold.withOutput(amps)), this)
         .withName(String.format("EndEffector holdAlgaeCurrent(%.1fA)", amps));
   }
-
-
 }

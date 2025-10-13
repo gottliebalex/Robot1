@@ -21,8 +21,8 @@ import com.pathplanner.lib.path.PathPlannerPath;
 import com.pathplanner.lib.util.FlippingUtil;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.networktables.BooleanTopic;
 import edu.wpi.first.networktables.BooleanPublisher;
+import edu.wpi.first.networktables.BooleanTopic;
 import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.wpilibj.GenericHID;
 import edu.wpi.first.wpilibj.XboxController;
@@ -32,8 +32,8 @@ import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.button.JoystickButton;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine;
+import frc.robot.FieldConstants.Reef.AlgaeMode;
 import frc.robot.FieldConstants.Reef.PipeSide;
-import frc.robot.commands.ClawCommands;
 import frc.robot.commands.DriveCommands;
 import frc.robot.commands.ElevatorCommands;
 import frc.robot.commands.IntakeCommands;
@@ -42,6 +42,7 @@ import frc.robot.commands.WristCommands;
 import frc.robot.generated.TunerConstants;
 import frc.robot.sensors.CoralSensor;
 import frc.robot.subsystems.SubsystemConstants;
+import frc.robot.subsystems.claw.ClawSubsystem;
 import frc.robot.subsystems.drive.Drive;
 import frc.robot.subsystems.drive.GyroIO;
 import frc.robot.subsystems.drive.GyroIOPigeon2;
@@ -49,7 +50,6 @@ import frc.robot.subsystems.drive.ModuleIO;
 import frc.robot.subsystems.drive.ModuleIOSim;
 import frc.robot.subsystems.drive.ModuleIOTalonFX;
 import frc.robot.subsystems.elevator.ElevatorSubsystem;
-import frc.robot.subsystems.claw.ClawSubsystem;
 import frc.robot.subsystems.intake.CoralIntakeSubsystem;
 import frc.robot.subsystems.vision.Vision;
 import frc.robot.subsystems.vision.VisionIO;
@@ -59,10 +59,8 @@ import frc.robot.subsystems.wrist.WristSubsystem;
 import java.util.HashMap;
 import java.util.Map;
 import org.littletonrobotics.junction.networktables.LoggedDashboardChooser;
-import org.littletonrobotics.junction.networktables.LoggedNetworkNumber;
-import org.littletonrobotics.junction.networktables.LoggedDashboardBoolean;
 import org.littletonrobotics.junction.networktables.LoggedNetworkBoolean;
-
+import org.littletonrobotics.junction.networktables.LoggedNetworkNumber;
 
 /**
  * This class is where the bulk of the robot should be declared. Since Command-based is a
@@ -91,16 +89,27 @@ public class RobotContainer {
   private final LoggedDashboardChooser<StartPose> startPoseChooser;
   private final Map<StartPose, Pose2d> manualStartingPosesBlue = new HashMap<>();
   private final Map<StartPose, Pose2d> manualStartingPosesRed = new HashMap<>();
+  // Supercycle mode chooser: Auto uses gamepad Start toggle; or force Supercycle/Grab
+  private final LoggedDashboardChooser<SCSelect> scModeChooser;
   private final LoggedNetworkNumber ReefLevel = // auto align level selection
       new LoggedNetworkNumber("Autopilot/ReefLevel", 4);
   // Selected pipe side for scoring (set by driver triggers/Y)
   private PipeSide selectedPipeSide = PipeSide.CENTER;
+  // SIM-only: logged boolean to force algae trip (mirrored to /Sim/ForceAlgaeTrip NT topic)
+  private LoggedNetworkBoolean simForceAlgaeTripToggle;
 
   /** Manual starting pose options. */
   public enum StartPose {
     NONE,
     LEFT,
     RIGHT
+  }
+
+  /** Supercycle selection for dashboard chooser. */
+  private enum SCSelect {
+    AUTO,
+    SUPERCYCLE,
+    GRAB
   }
 
   /** The container for the robot. Contains subsystems, OI devices, and commands. */
@@ -153,8 +162,7 @@ public class RobotContainer {
         coralSensor = new CoralSensor(SubsystemConstants.CANANDCOLOR_ID);
 
         // SIM-ONLY: Elastic toggle to force algae trip for intake
-        LoggedNetworkBoolean simForceAlgaeTripToggle =
-            new LoggedNetworkBoolean("Sim/Force Algae Trip", false);
+        simForceAlgaeTripToggle = new LoggedNetworkBoolean("Sim/Force Algae Trip", false);
         BooleanTopic forceAlgaeTripTopic =
             NetworkTableInstance.getDefault().getBooleanTopic("/Sim/ForceAlgaeTrip");
         BooleanPublisher forceAlgaeTripPublisher = forceAlgaeTripTopic.publish();
@@ -162,8 +170,7 @@ public class RobotContainer {
         // Mirror the Elastic toggle to the NT topic each loop (ignores disable)
         CommandScheduler.getInstance()
             .schedule(
-                Commands.run(
-                        () -> forceAlgaeTripPublisher.set(simForceAlgaeTripToggle.get()))
+                Commands.run(() -> forceAlgaeTripPublisher.set(simForceAlgaeTripToggle.get()))
                     .ignoringDisable(true));
         break;
 
@@ -226,6 +233,12 @@ public class RobotContainer {
     manualStartingPosesRed.put(StartPose.LEFT, FieldConstants.LEFT_STARTING_POSE_RED);
     manualStartingPosesBlue.put(StartPose.RIGHT, FieldConstants.RIGHT_STARTING_POSE_BLUE);
     manualStartingPosesRed.put(StartPose.RIGHT, FieldConstants.RIGHT_STARTING_POSE_RED);
+
+    // Supercycle mode chooser
+    scModeChooser = new LoggedDashboardChooser<>("Autopilot/SC Mode");
+    scModeChooser.addDefaultOption("Auto (Start Toggle)", SCSelect.AUTO);
+    scModeChooser.addOption("Supercycle", SCSelect.SUPERCYCLE);
+    scModeChooser.addOption("Grab", SCSelect.GRAB);
 
     // Set up SysId routines
     autoChooser.addOption(
@@ -298,7 +311,8 @@ public class RobotContainer {
                 () -> {
                   GamePiece.toggleSupercycle();
                   System.out.println(
-                      "Supercycle mode: " + (GamePiece.isSupercycleEnabled() ? "ENABLED" : "DISABLED"));
+                      "Supercycle mode: "
+                          + (GamePiece.isSupercycleEnabled() ? "ENABLED" : "DISABLED"));
                 }));
 
     // Reset gyro to 0° when B button is pressed
@@ -371,13 +385,43 @@ public class RobotContainer {
                     int lvl = getSelectedReefLevel();
                     if (lvl < 2) lvl = 2;
                     if (lvl > 4) lvl = 4;
+
+                    // Resolve Supercycle mode from chooser, or fall back to Start-toggle state
+                    var sel = scModeChooser.get();
+                    var mode =
+                        sel == SCSelect.SUPERCYCLE
+                            ? AlgaeMode.SUPERCYCLE
+                            : sel == SCSelect.GRAB
+                                ? AlgaeMode.GRAB
+                                : (GamePiece.isSupercycleEnabled()
+                                    ? AlgaeMode.SUPERCYCLE
+                                    : AlgaeMode.GRAB);
+
+                    // Algae intake parameters (from preset; OK if zero until tuned)
+                    var preset = SubsystemConstants.ClawVoltages.ALGAE_INTAKE;
+                    double volts = preset.volts().in(edu.wpi.first.units.Units.Volts);
+                    double rampS = preset.rampS().in(edu.wpi.first.units.Units.Seconds);
+                    double timeoutS = preset.timeoutS().in(edu.wpi.first.units.Units.Seconds);
+                    double tripCurrentAmps = 25.0;
+                    double debounceSeconds = 0.10;
+
                     return ScoreCommands.scoreReefLevelSCorNOT(
-                      drive, elevator, wrist, claw,
-                      4, SCmode, PipeSide.LEFT,
-                      volts, rampS, timeoutS, 
-                      debounceSeconds, tripCurrentAmps, forceTrip);
+                        drive,
+                        elevator,
+                        wrist,
+                        claw,
+                        lvl,
+                        mode,
+                        PipeSide.LEFT,
+                        volts,
+                        rampS,
+                        timeoutS,
+                        tripCurrentAmps,
+                        debounceSeconds,
+                        claw.forceAlgaeTripSupplier());
                   },
                   java.util.Set.of(drive, elevator, wrist)));
+
       controller
           .rightBumper()
           .onTrue(
@@ -386,8 +430,38 @@ public class RobotContainer {
                     int lvl = getSelectedReefLevel();
                     if (lvl < 2) lvl = 2;
                     if (lvl > 4) lvl = 4;
-                    return ScoreCommands.scoreReefLevel(
-                        drive, claw, elevator, wrist, lvl, PipeSide.RIGHT);
+
+                    var sel = scModeChooser.get();
+                    var mode =
+                        sel == SCSelect.SUPERCYCLE
+                            ? AlgaeMode.SUPERCYCLE
+                            : sel == SCSelect.GRAB
+                                ? AlgaeMode.GRAB
+                                : (GamePiece.isSupercycleEnabled()
+                                    ? AlgaeMode.SUPERCYCLE
+                                    : AlgaeMode.GRAB);
+
+                    var preset = SubsystemConstants.ClawVoltages.ALGAE_INTAKE;
+                    double volts = preset.volts().in(edu.wpi.first.units.Units.Volts);
+                    double rampS = preset.rampS().in(edu.wpi.first.units.Units.Seconds);
+                    double timeoutS = preset.timeoutS().in(edu.wpi.first.units.Units.Seconds);
+                    double tripCurrentAmps = 25.0;
+                    double debounceSeconds = 0.10;
+
+                    return ScoreCommands.scoreReefLevelSCorNOT(
+                        drive,
+                        elevator,
+                        wrist,
+                        claw,
+                        lvl,
+                        mode,
+                        PipeSide.RIGHT,
+                        volts,
+                        rampS,
+                        timeoutS,
+                        tripCurrentAmps,
+                        debounceSeconds,
+                        claw.forceAlgaeTripSupplier());
                   },
                   java.util.Set.of(drive, elevator, wrist)));
 
@@ -397,12 +471,12 @@ public class RobotContainer {
       //     .onTrue(
       //         Commands.defer(
       //             () -> {
-      //               int lvl = 
+      //               int lvl =
       //               return frc.robot.commands.IntakeCommands.intakeReefAlgae(
       //                   drive, endEffector, elevator, wrist, lvl);
       //             },
       //             java.util.Set.of(drive, endEffector, elevator, wrist)));
-      
+
       // Cancel button
       controller
           .povDown()
@@ -422,19 +496,19 @@ public class RobotContainer {
       if (coralIntake != null && claw != null) {
         new JoystickButton(apacController, 1)
             .toggleOnTrue(
-                IntakeCommands.intakeCoral(
-                        coralIntake,
-                        claw,
-                        elevator,
-                        coralSensor,
-                        volts,
-                        SubsystemConstants.ClawVoltages.CORAL_INTAKE
-                        )
+                IntakeCommands.intakeCoral(coralIntake, claw, elevator, coralSensor, 8.0, 8.0)
                     .withName("Intake Coral"));
 
         // Simulate sensor trip (toggles SmartDashboard Sim/CoralDetected briefly)
         new JoystickButton(apacController, 2)
             .onTrue(IntakeCommands.simulateCoralDetectionPulse(coralSensor));
+
+        // SIM: While held, force algae trip via dashboard toggle (mirrored to NT topic)
+        if (simForceAlgaeTripToggle != null) {
+          new JoystickButton(apacController, 3)
+              .onTrue(Commands.runOnce(() -> simForceAlgaeTripToggle.set(true)))
+              .onFalse(Commands.runOnce(() -> simForceAlgaeTripToggle.set(false)));
+        }
       }
     }
   }

@@ -1,27 +1,21 @@
 package frc.robot.commands;
 
-import static edu.wpi.first.units.Units.Volts;
-import static edu.wpi.first.units.Units.Second;
 import static edu.wpi.first.units.Units.Seconds;
+import static edu.wpi.first.units.Units.Volts;
 
-import java.util.function.BooleanSupplier;
-
-import edu.wpi.first.math.util.Units;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
-import edu.wpi.first.wpilibj2.command.ParallelRaceGroup;
-import frc.robot.FieldConstants.Reef.AlgaeMode;
-import frc.robot.FieldConstants.Reef.Branch;
-import frc.robot.FieldConstants.Reef.PipeSide;
 import frc.robot.FieldConstants;
+import frc.robot.FieldConstants.Reef.AlgaeMode;
+import frc.robot.FieldConstants.Reef.PipeSide;
 import frc.robot.GamePiece;
 import frc.robot.subsystems.SubsystemConstants;
 import frc.robot.subsystems.SubsystemConstants.ClawVoltages;
 import frc.robot.subsystems.claw.ClawSubsystem;
-import frc.robot.commands.ClawCommands;
 import frc.robot.subsystems.drive.Drive;
 import frc.robot.subsystems.elevator.ElevatorSubsystem;
 import frc.robot.subsystems.wrist.WristSubsystem;
+import java.util.function.BooleanSupplier;
 
 /** Composite scoring commands for reef levels. */
 public final class ScoreCommands {
@@ -171,138 +165,22 @@ public final class ScoreCommands {
     return scoreReefLevel(drive, elevator, wrist, 4, PipeSide.RIGHT).withName("Score L4 Right");
   }
 
-  /**
-   * Score at a reef level (no side) and, if supercycle is enabled, immediately approach algae,
-   * align to SUPERCYCLE standoff, intake algae, then stow elevator/wrist.
-   */
-  // public static Command scoreReefLevel(
-  //     Drive drive,
-  //     EndEffectorSubsystem endEffector,
-  //     ElevatorSubsystem elevator,
-  //     WristSubsystem wrist,
-  //     int level) {
-  //   // If supercycle is OFF or no end effector present, use regular score
-  //   if (!GamePiece.isSupercycleEnabled() || endEffector == null) {
-  //     return scoreReefLevel(drive, elevator, wrist, level);
-  //   }
-
-  //   // Build the coral score approach without stowing after scoring
-  //   var elevatorTarget =
-  //       switch (level) {
-  //         case 2 -> SubsystemConstants.ElevatorPosition.L2.distance();
-  //         case 3 -> SubsystemConstants.ElevatorPosition.L3.distance();
-  //         case 4 -> SubsystemConstants.ElevatorPosition.L4.distance();
-  //         default -> SubsystemConstants.ElevatorPosition.Down.distance();
-  //       };
-  //   var wristTarget =
-  //       switch (level) {
-  //         case 2 -> SubsystemConstants.WristPosition.L2Score.angle();
-  //         case 3 -> SubsystemConstants.WristPosition.L3Score.angle();
-  //         case 4 -> SubsystemConstants.WristPosition.L4Score.angle();
-  //         default -> SubsystemConstants.WristPosition.Stowed.angle();
-  //       };
-
-  //   Command alignCoral = DriveCommands.alignToNearestAllianceReefFace(drive, level);
-  //   Command reachCoralTargets =
-  //       Commands.parallel(
-  //           alignCoral,
-  //           Commands.deadline(
-  //               elevator.waitUntilAtHeight(elevatorTarget), elevator.setHeight(elevatorTarget)),
-  //           Commands.deadline(wrist.waitUntilAtAngle(wristTarget), wrist.setAngle(wristTarget)));
-
-  //   // Follow-up: approach algae (SC), intake, then stow
-  //   var stowElevator = SubsystemConstants.ElevatorPosition.Down.distance();
-  //   var stowWrist = SubsystemConstants.WristPosition.Stowed.angle();
-  //   Command approachSC =
-  //       IntakeCommands.approachReefAlgae(drive, elevator, wrist, AlgaeMode.SUPERCYCLE);
-  //   Command intakeAlgae =
-  //       endEffector.intakeAlgae(SubsystemConstants.DEFAULT_END_EFFECTOR_SPEED);
-  //   Command stowAfterIntake =
-  //       Commands.deadline(
-  //           Commands.waitUntil(() -> elevator.atHeight(stowElevator) && wrist.atAngle(stowWrist)),
-  //           endEffector.holdAlgae(),
-  //           elevator.setHeight(stowElevator),
-  //           wrist.setAngle(stowWrist));
-
-  //   return Commands.sequence(
-  //           reachCoralTargets, Commands.waitSeconds(0.50), approachSC, intakeAlgae, stowAfterIntake)
-  //       .withName("Score L" + level + " + Supercycle");
-  // }
-
-  /**
-   * Score at a reef level on a side and, if supercycle is enabled, immediately approach algae,
-   * align to SUPERCYCLE standoff, intake algae, then stow elevator/wrist.
-   */
-  // public static Command scoreReefLevel(
-  //     Drive drive,
-  //     EndEffectorSubsystem endEffector,
-  //     ElevatorSubsystem elevator,
-  //     WristSubsystem wrist,
-  //     int level,
-  //     PipeSide side) {
-  //   // If supercycle is OFF or no end effector present, use regular score
-  //   if (!GamePiece.isSupercycleEnabled() || endEffector == null) {
-  //     return scoreReefLevel(drive, elevator, wrist, level, side);
-  //   }
-
-  //   // Build the coral score approach without stowing after scoring
-  //   var elevatorTarget =
-  //       switch (level) {
-  //         case 2 -> SubsystemConstants.ElevatorPosition.L2.distance();
-  //         case 3 -> SubsystemConstants.ElevatorPosition.L3.distance();
-  //         case 4 -> SubsystemConstants.ElevatorPosition.L4.distance();
-  //         default -> SubsystemConstants.ElevatorPosition.Down.distance();
-  //       };
-  //   var wristTarget =
-  //       switch (level) {
-  //         case 2 -> SubsystemConstants.WristPosition.L2Score.angle();
-  //         case 3 -> SubsystemConstants.WristPosition.L3Score.angle();
-  //         case 4 -> SubsystemConstants.WristPosition.L4Score.angle();
-  //         default -> SubsystemConstants.WristPosition.Stowed.angle();
-  //       };
-  //   Command alignCoral = DriveCommands.alignToNearestAllianceReefFace(drive, level, side);
-  //   Command reachCoralTargets =
-  //       Commands.parallel(
-  //           alignCoral,
-  //           Commands.deadline(
-  //               elevator.waitUntilAtHeight(elevatorTarget), elevator.setHeight(elevatorTarget)),
-  //           Commands.deadline(wrist.waitUntilAtAngle(wristTarget), wrist.setAngle(wristTarget)));
-
-  //   // Follow-up: approach algae (SC), intake, then stow
-  //   var stowElevator = SubsystemConstants.ElevatorPosition.Down.distance();
-  //   var stowWrist = SubsystemConstants.WristPosition.Stowed.angle();
-  //   Command approachSC =
-  //       IntakeCommands.approachReefAlgae(drive, elevator, wrist, AlgaeMode.SUPERCYCLE);
-  //   Command intakeAlgae =
-  //       endEffector.intakeAlgae(SubsystemConstants.DEFAULT_END_EFFECTOR_SPEED);
-  //   Command stowAfterIntake =
-  //       Commands.deadline(
-  //           Commands.waitUntil(() -> elevator.atHeight(stowElevator) && wrist.atAngle(stowWrist)),
-  //           endEffector.holdAlgae(),
-  //           elevator.setHeight(stowElevator),
-  //           wrist.setAngle(stowWrist));
-
-  //   return Commands.sequence(
-  //           reachCoralTargets, Commands.waitSeconds(0.50), approachSC, intakeAlgae, stowAfterIntake)
-  //       .withName("Score L" + level + " (" + side + ") + Supercycle");
-  // }
-
   public static Command scoreReefLevelSCorNOT(
-    Drive drive, 
-    ElevatorSubsystem elevator, 
-    WristSubsystem wrist, 
-    ClawSubsystem claw,
-    int level, 
-    AlgaeMode mode,
-    PipeSide side,
-    double volts,
-    double rampS,
-    double timoutS,
-    double tripCurrentAmps,
-    double debounceSeconds,
-    BooleanSupplier forceTrip) {
-      //coral approaches
-      var elevatorTarget =
+      Drive drive,
+      ElevatorSubsystem elevator,
+      WristSubsystem wrist,
+      ClawSubsystem claw,
+      int level,
+      AlgaeMode mode,
+      PipeSide side,
+      double volts,
+      double rampS,
+      double timoutS,
+      double tripCurrentAmps,
+      double debounceSeconds,
+      BooleanSupplier forceTrip) {
+    // coral approaches
+    var elevatorTarget =
         switch (level) {
           case 2 -> SubsystemConstants.ElevatorPosition.L2.distance();
           case 3 -> SubsystemConstants.ElevatorPosition.L3.distance();
@@ -310,7 +188,7 @@ public final class ScoreCommands {
           default -> SubsystemConstants.ElevatorPosition.Down.distance();
         };
 
-      var wristTarget =
+    var wristTarget =
         switch (level) {
           case 2 -> SubsystemConstants.WristPosition.L2Score.angle();
           case 3 -> SubsystemConstants.WristPosition.L3Score.angle();
@@ -318,16 +196,17 @@ public final class ScoreCommands {
           default -> SubsystemConstants.WristPosition.Stowed.angle();
         };
 
-      var ejectPreset = 
+    var ejectPreset =
         switch (level) {
           case 2 -> SubsystemConstants.ClawVoltages.CORAL_SCORE_L2;
           case 3 -> SubsystemConstants.ClawVoltages.CORAL_SCORE_L3;
           case 4 -> SubsystemConstants.ClawVoltages.CORAL_SCORE_L4;
           default -> SubsystemConstants.ClawVoltages.DEFAULT;
         };
-    
+
     var stowElevator = SubsystemConstants.ElevatorPosition.Down.distance();
     var stowWrist = SubsystemConstants.WristPosition.Stowed.angle();
+    var algaeTransit = SubsystemConstants.WristPosition.AlgaeTransit.angle();
 
     Command coralAlign = DriveCommands.alignToNearestAllianceReefFace(drive, level, side);
 
@@ -335,85 +214,90 @@ public final class ScoreCommands {
 
     Command reachCoralSetpoints =
         Commands.parallel(
-          coralAlign,
-          Commands.deadline(
-            elevator.waitUntilAtHeight(elevatorTarget), elevator.setHeight(elevatorTarget)),
-          Commands.deadline(
-          wrist.waitUntilAtAngle(wristTarget), wrist.setAngle(wristTarget)));
-       
+            coralAlign,
+            Commands.deadline(
+                elevator.waitUntilAtHeight(elevatorTarget), elevator.setHeight(elevatorTarget)),
+            Commands.deadline(wrist.waitUntilAtAngle(wristTarget), wrist.setAngle(wristTarget)));
+
     Command runRollers = ClawCommands.runRollers(claw, ejectPreset);
-       
+
     var nearest = FieldConstants.Reef.nearestBranch(drive.getPose());
 
     int baseLevel = FieldConstants.Reef.algaeBaseLevel(nearest, AlgaeMode.SUPERCYCLE);
 
-    var SCElevatorTarget = (baseLevel == 2)
-        ? SubsystemConstants.ElevatorPosition.L2SCAlgae.distance()
-        : SubsystemConstants.ElevatorPosition.L3SCAlgae.distance();
+    var SCElevatorTarget =
+        (baseLevel == 2)
+            ? SubsystemConstants.ElevatorPosition.L2SCAlgae.distance()
+            : SubsystemConstants.ElevatorPosition.L3SCAlgae.distance();
 
     var SCwristTarget = SubsystemConstants.WristPosition.ReefSCAlgae.angle();
 
-    Command intakeAlgae = IntakeCommands.intakeAlgae(
-      claw,
-      volts,
-      rampS,
-      timoutS,
-      tripCurrentAmps,
-      debounceSeconds,
-      forceTrip);
+    Command intakeAlgae =
+        IntakeCommands.intakeAlgae(
+            claw,
+            ClawVoltages.ALGAE_INTAKE,
+            SubsystemConstants.kAlgaeTripCurrent,
+            SubsystemConstants.kAlgaeDebounceS,
+            claw.forceAlgaeTripSupplier());
 
     Command SCorNOT;
-      
-    if (mode == AlgaeMode.SUPERCYCLE){
-      SCorNOT=
-        Commands.parallel(
-              algaeAlign,
+
+    if (mode == AlgaeMode.SUPERCYCLE) {
+      SCorNOT =
+          Commands.sequence(
+              Commands.parallel(
+                  algaeAlign,
+                  Commands.deadline(
+                      elevator.waitUntilAtHeight(SCElevatorTarget),
+                      elevator.setHeight(SCElevatorTarget)),
+                  Commands.deadline(
+                      wrist.waitUntilAtAngle(SCwristTarget), wrist.setAngle(SCwristTarget)),
+                  intakeAlgae),
+              Commands.parallel(
+                  Commands.deadline(
+                      elevator.waitUntilAtHeight(stowElevator), elevator.setHeight(stowElevator)),
+                  Commands.deadline(
+                      wrist.waitUntilAtAngle(algaeTransit), wrist.setAngle(algaeTransit))));
+    } else {
+      SCorNOT =
+          Commands.parallel(
               Commands.deadline(
-                elevator.waitUntilAtHeight(SCElevatorTarget), 
-                elevator.setHeight(SCElevatorTarget)),
-              Commands.deadline(
-                wrist.waitUntilAtAngle(SCwristTarget), 
-                wrist.setAngle(SCwristTarget)),
-              intakeAlgae
-              );
-    }
-    else {
-      SCorNOT=
-        Commands.parallel(
-            Commands.deadline(
-              elevator.waitUntilAtHeight(stowElevator), elevator.setHeight(stowElevator)),
-            Commands.deadline(wrist.waitUntilAtAngle(stowWrist), wrist.setAngle(stowWrist)));
-    }
-      
-          
-
-    return Commands.sequence(
-      reachCoralSetpoints, runRollers, SCorNOT
-    );        
+                  elevator.waitUntilAtHeight(stowElevator), elevator.setHeight(stowElevator)),
+              Commands.deadline(wrist.waitUntilAtAngle(stowWrist), wrist.setAngle(stowWrist)));
     }
 
-    public static Command scoreL4LeftSCorNot(
-      Drive drive,
-      ElevatorSubsystem elevatorSubsystem,
-      WristSubsystem wrist,
-      ClawSubsystem claw) {
-        var preset = SubsystemConstants.ClawVoltages.CORAL_SCORE_L4;
-        double volts = preset.volts().in(Volts);
-        double rampS = preset.rampS().in(Seconds);
-        double timeoutS = preset.timeoutS().in(Seconds);
-        var mode = GamePiece.isSupercycleEnabled()
-          ?AlgaeMode.SUPERCYCLE
-          :AlgaeMode.GRAB;
-      // return scoreReefLevelSCorNOT(drive, elevatorSubsystem, wrist, claw, 
-      // 4, null, PipeSide.LEFT, 
-      // volts, rampS, volts, rampS,  timeoutS,null);
-      // }
-      return scoreReefLevelSCorNOT(drive, elevatorSubsystem, wrist, claw,
-      0, null, PipeSide.LEFT,
-      volts, rampS, volts, rampS, timeoutS, null);
+    return Commands.sequence(reachCoralSetpoints, runRollers, SCorNOT);
+  }
 
-    
+  public static Command scoreL4LeftSCorNot(
+      Drive drive, ElevatorSubsystem elevator, WristSubsystem wrist, ClawSubsystem claw) {
+
+    var coralEjectPreset = SubsystemConstants.ClawVoltages.CORAL_SCORE_L4;
+    double volts = coralEjectPreset.volts().in(Volts);
+    double rampS = coralEjectPreset.rampS().in(Seconds);
+    double timeoutS = coralEjectPreset.timeoutS().in(Seconds);
+
+    double tripCurrentAmps = SubsystemConstants.kAlgaeTripCurrent;
+    double debounceSeconds = SubsystemConstants.kAlgaeDebounceS;
+
+    boolean supercycle = GamePiece.isSupercycleEnabled();
+    var SCmode = supercycle ? AlgaeMode.SUPERCYCLE : AlgaeMode.GRAB;
+
+    BooleanSupplier forceTrip = () -> false;
+
+    return scoreReefLevelSCorNOT(
+        drive,
+        elevator,
+        wrist,
+        claw,
+        4,
+        SCmode,
+        PipeSide.LEFT,
+        volts,
+        rampS,
+        timeoutS,
+        debounceSeconds,
+        tripCurrentAmps,
+        forceTrip);
+  }
 }
-}
-
-
