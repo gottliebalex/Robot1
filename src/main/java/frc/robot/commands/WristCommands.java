@@ -5,22 +5,38 @@ import edu.wpi.first.wpilibj2.command.Commands;
 import frc.robot.subsystems.SubsystemConstants;
 import frc.robot.subsystems.wrist.WristSubsystem;
 
-// use the scorecommands command factory for any scoring commands these are mainly for
-// troubleshooting or quick testing
-
 public class WristCommands {
+
   public static Command Stowed(WristSubsystem wrist) {
     var target = SubsystemConstants.WristPosition.Stowed.angle();
-    return Commands.sequence(wrist.setAngle(target), wrist.waitUntilAtAngle(target));
+    return Commands.deadline(wrist.setAngle(target), wrist.waitUntilAtAngle(target));
   }
 
-  public static Command AlgaeIntake(WristSubsystem wrist) {
-    var target = SubsystemConstants.WristPosition.AlgaeGroundIntake.angle();
-    return Commands.sequence(wrist.setAngle(target), wrist.waitUntilAtAngle(target));
+  // public static Command AlgaeIntake(WristSubsystem wrist) {
+  //   var target = SubsystemConstants.WristPosition.AlgaeGroundIntake.angle();
+  //   return Commands.sequence(wrist.setAngle(target), wrist.waitUntilAtAngle(target));
+  // }
+
+  // public static Command TestWrist(WristSubsystem wrist) {
+  //   var target = SubsystemConstants.WristPosition.Test.angle();
+  //   return Commands.sequence(wrist.setAngle(target), wrist.waitUntilAtAngle(target));
+  // }
+
+  private final WristSubsystem wrist;
+
+  public WristCommands(WristSubsystem wrist) {
+    this.wrist = wrist;
   }
 
-  public static Command TestWrist(WristSubsystem wrist) {
-    var target = SubsystemConstants.WristPosition.Test.angle();
-    return Commands.sequence(wrist.setAngle(target), wrist.waitUntilAtAngle(target));
+  public Command algaeIdle() {
+    return Commands.startEnd(
+        () -> wrist.setAngle(SubsystemConstants.WristPosition.AlgaeTransit.angle()),
+        () -> {},
+        wrist);
+  }
+
+  public Command idle() {
+    return Commands.startEnd(
+        () -> wrist.setAngle(SubsystemConstants.WristPosition.Stowed.angle()), () -> {}, wrist);
   }
 }

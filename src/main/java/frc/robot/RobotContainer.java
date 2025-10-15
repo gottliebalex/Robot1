@@ -34,6 +34,7 @@ import edu.wpi.first.wpilibj2.command.button.JoystickButton;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine;
 import frc.robot.FieldConstants.Reef.AlgaeMode;
 import frc.robot.FieldConstants.Reef.PipeSide;
+import frc.robot.GamePiece.Mode;
 import frc.robot.commands.DriveCommands;
 import frc.robot.commands.ElevatorCommands;
 import frc.robot.commands.IntakeCommands;
@@ -74,9 +75,15 @@ public class RobotContainer {
   private final Vision vision;
   private final ElevatorSubsystem elevator;
   private final WristSubsystem wrist;
+  private final WristCommands wristCmds;
   private final CoralIntakeSubsystem coralIntake;
   private final ClawSubsystem claw;
   private final CoralSensor coralSensor;
+
+  void applyWristDefault(Mode mode) {
+    applyWristDefault(GamePiece.getMode());
+    GamePiece.onModeChange(this::applyWristDefault);
+  }
 
   // Controller
   private final CommandXboxController controller = new CommandXboxController(0);
@@ -135,6 +142,7 @@ public class RobotContainer {
 
         elevator = new ElevatorSubsystem();
         wrist = new WristSubsystem();
+        wristCmds = new WristCommands(wrist);
         coralIntake = new CoralIntakeSubsystem();
         claw = new ClawSubsystem();
         coralSensor = new CoralSensor(SubsystemConstants.CANANDCOLOR_ID);
@@ -157,6 +165,7 @@ public class RobotContainer {
                 new VisionIOPhotonVisionSim("camera_1", robotToCamera1, drive::getPose));
         elevator = new ElevatorSubsystem();
         wrist = new WristSubsystem();
+        wristCmds = new WristCommands(wrist);
         coralIntake = new CoralIntakeSubsystem();
         claw = new ClawSubsystem();
         coralSensor = new CoralSensor(SubsystemConstants.CANANDCOLOR_ID);
@@ -187,6 +196,7 @@ public class RobotContainer {
         vision = new Vision(drive::addVisionMeasurement, new VisionIO() {}, new VisionIO() {});
         elevator = null;
         wrist = null;
+        wristCmds = null;
         coralIntake = null;
         claw = null;
         coralSensor = new CoralSensor();
@@ -258,7 +268,59 @@ public class RobotContainer {
 
     // Configure the button bindings
     configureButtonBindings();
+
+    // Default claw behavior: when carrying algae, actively hold using torque control.
+    // if (claw != null) {
+    claw.setDefaultCommand(
+        Commands.run(
+                () -> {
+                  if (GamePiece.getMode() == GamePiece.Mode.ALGAE) {
+                    claw.applyHoldTorque();
+                  } else {
+                    claw.stop();
+                  }
+                },
+                claw)
+            .withName("Claw Default Hold Algae"));
+    // }
+
+    // Default wrist hold at 0 degrees (stowed)
+    // if (elevator != null && wrist != null) {
+
+    wrist.setDefaultCommand(
+        Commands.run(
+            () -> {
+              if (GamePiece.getMode() == GamePiece.Mode.ALGAE) {
+                Commands.sequence(wrist.setAngle(SubsystemConstants.WristPosition.AlgaeTransit.angle()),
+                Commands.run(() -> {}, wrist));
+              } else {
+                Commands.sequence(wrist.setAngle(SubsystemConstants.WristPosition.Stowed.angle()),
+                Commands.run(() -> {}, wrist));
+
+              }
+
+              // Angle target =
+              //     (GamePiece.getMode() == GamePiece.Mode.ALGAE)
+              //         ? SubsystemConstants.WristPosition.AlgaeTransit.angle()
+              //         : SubsystemConstants.WristPosition.Stowed.angle();
+              // wrist.setAngle(target);
+            },
+            wrist));
+
+    // wrist.setDefaultCommand(
+    //     Commands.sequence(
+    //             wrist.setAngle(SubsystemConstants.WristPosition.Stowed.angle()),
+    //             Commands.run(() -> {}, wrist))
+    //         .withName("Wrist Default Command (0 deg)"));
+
+    elevator.setDefaultCommand(
+        Commands.sequence(
+                elevator.setHeight(SubsystemConstants.ElevatorPosition.Down.distance()),
+                Commands.run(() -> {}, elevator))
+            .withName("Elevator Default Command"));
   }
+
+  // }
 
   /**
    * Use this method to define your button->command mappings. Buttons can be created by
@@ -274,21 +336,6 @@ public class RobotContainer {
             () -> -controller.getLeftY(),
             () -> -controller.getLeftX(),
             () -> -controller.getRightX()));
-
-    // Default wrist hold at 0 degrees (stowed)
-    if (wrist != null) {
-      wrist.setDefaultCommand(
-          Commands.sequence(
-                  wrist.setAngle(SubsystemConstants.WristPosition.Stowed.angle()),
-                  Commands.run(() -> {}, wrist))
-              .withName("Wrist Default Command (0 deg)"));
-
-      elevator.setDefaultCommand(
-          Commands.sequence(
-                  elevator.setHeight(SubsystemConstants.ElevatorPosition.Down.distance()),
-                  Commands.run(() -> {}, elevator))
-              .withName("Elevator Default Command"));
-    }
 
     // Lock to 0° when A button is held
     controller
@@ -358,18 +405,19 @@ public class RobotContainer {
                 }));
 
     // Left/Right triggers: choose LEFT/RIGHT pipe side and align while held
-    controller.leftTrigger().onTrue(Commands.runOnce(() -> selectedPipeSide = PipeSide.LEFT));
-    controller
-        .leftTrigger()
-        .whileTrue(
-            DriveCommands.alignToNearestAllianceReefFace(
-                drive, () -> getSelectedReefLevel(), PipeSide.LEFT));
-    controller.rightTrigger().onTrue(Commands.runOnce(() -> selectedPipeSide = PipeSide.RIGHT));
-    controller
-        .rightTrigger()
-        .whileTrue(
-            DriveCommands.alignToNearestAllianceReefFace(
-                drive, () -> getSelectedReefLevel(), PipeSide.RIGHT));
+    // controller.leftTrigger().onTrue(Commands.runOnce(() -> selectedPipeSide = PipeSide.LEFT));
+    // controller
+    //     .leftTrigger()
+    //     .onTrue(
+    //         DriveCommands.alignToNearestAllianceReefFace(
+    //             drive, () -> getSelectedReefLevel(), PipeSide.LEFT));
+    // //controller.rightTrigger().onTrue(Commands.runOnce(() -> selectedPipeSide =
+    // PipeSide.RIGHT));
+    // controller
+    //     .rightTrigger()
+    //     .onTrue(
+    //         DriveCommands.alignToNearestAllianceReefFace(
+    //             drive, () -> getSelectedReefLevel(), PipeSide.RIGHT));
 
     // Y button repurposed below (when mechanisms present) to run reef algae intake
 
@@ -485,12 +533,12 @@ public class RobotContainer {
                   .andThen(
                       Commands.parallel(
                           WristCommands.Stowed(wrist), ElevatorCommands.Down(elevator))));
-      // for testing elevator/wrist
-      new JoystickButton(apacController, 5).onTrue(WristCommands.Stowed(wrist));
-      new JoystickButton(apacController, 6).onTrue(WristCommands.AlgaeIntake(wrist));
-      new JoystickButton(apacController, 7).onTrue(WristCommands.TestWrist(wrist));
-      new JoystickButton(apacController, 12).onTrue(ElevatorCommands.Down(elevator));
-      new JoystickButton(apacController, 13).onTrue(ElevatorCommands.L3Score(elevator));
+      // // for testing elevator/wrist
+      // new JoystickButton(apacController, 5).onTrue(WristCommands.Stowed(wrist));
+      // new JoystickButton(apacController, 6).onTrue(WristCommands.AlgaeIntake(wrist));
+      // new JoystickButton(apacController, 7).onTrue(WristCommands.TestWrist(wrist));
+      // new JoystickButton(apacController, 12).onTrue(ElevatorCommands.Down(elevator));
+      // new JoystickButton(apacController, 13).onTrue(ElevatorCommands.L3Score(elevator));
 
       // Coral intake sequence and simulation helper
       if (coralIntake != null && claw != null) {

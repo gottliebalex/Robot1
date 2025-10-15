@@ -64,6 +64,11 @@ public class ClawSubsystem extends SubsystemBase {
     return () -> algaeTripSubscriber.get();
   }
 
+  /** Apply one cycle of torque hold. Intended for use by a default command. */
+  public void applyHoldTorque() {
+    clawMotor.setControl(torqueHold);
+  }
+
   // /** Run end effector at a voltage for intaking algae */
   // public Command runRollersAlgae(double volts) {
   //   return Commands.run(() -> motor.setVoltage(SubsystemConstants.DEFAULT_ALGAE_INTAKE_SPEED),

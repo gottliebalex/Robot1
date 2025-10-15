@@ -236,8 +236,8 @@ public final class ScoreCommands {
         IntakeCommands.intakeAlgae(
             claw,
             ClawVoltages.ALGAE_INTAKE,
-            SubsystemConstants.kAlgaeTripCurrent,
-            SubsystemConstants.kAlgaeDebounceS,
+            tripCurrentAmps,
+            debounceSeconds,
             claw.forceAlgaeTripSupplier());
 
     Command SCorNOT;
@@ -253,17 +253,18 @@ public final class ScoreCommands {
                   Commands.deadline(
                       wrist.waitUntilAtAngle(SCwristTarget), wrist.setAngle(SCwristTarget)),
                   intakeAlgae),
-              Commands.parallel(
-                  Commands.deadline(
-                      elevator.waitUntilAtHeight(stowElevator), elevator.setHeight(stowElevator)),
-                  Commands.deadline(
-                      wrist.waitUntilAtAngle(algaeTransit), wrist.setAngle(algaeTransit))));
+              Commands.deadline(
+                  Commands.waitUntil(
+                      () -> elevator.atHeight(stowElevator) && wrist.atAngle(algaeTransit)),
+                  claw.holdAlgae(),
+                  elevator.setHeight(stowElevator),
+                  wrist.setAngle(algaeTransit)));
     } else {
       SCorNOT =
-          Commands.parallel(
-              Commands.deadline(
-                  elevator.waitUntilAtHeight(stowElevator), elevator.setHeight(stowElevator)),
-              Commands.deadline(wrist.waitUntilAtAngle(stowWrist), wrist.setAngle(stowWrist)));
+          Commands.deadline(
+              Commands.waitUntil(() -> elevator.atHeight(stowElevator) && wrist.atAngle(stowWrist)),
+              elevator.setHeight(stowElevator),
+              wrist.setAngle(stowWrist));
     }
 
     return Commands.sequence(reachCoralSetpoints, runRollers, SCorNOT);
@@ -296,8 +297,8 @@ public final class ScoreCommands {
         volts,
         rampS,
         timeoutS,
-        debounceSeconds,
         tripCurrentAmps,
+        debounceSeconds,
         forceTrip);
   }
 }

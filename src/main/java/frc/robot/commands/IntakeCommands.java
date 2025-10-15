@@ -227,7 +227,7 @@ public final class IntakeCommands {
     Timer ignoreTimer = new Timer();
     ignoreTimer.restart();
 
-    return ClawCommands.runRollers(claw, ClawVoltages.ALGAE_INTAKE)
+    return ClawCommands.runRollers(claw, voltages)
         .until(
             () -> {
               // Refresh the stator current once per loop, then read
@@ -239,12 +239,13 @@ public final class IntakeCommands {
                   ignoreTimer.hasElapsed(DEFAULT_START_IGNORE_S) && amps >= tripCurrentAmps;
               return debouncer.calculate(aboveThreshhold) || forceTrip.getAsBoolean();
             })
-        .andThen(claw.holdAlgae())
         .andThen(Commands.runOnce(() -> GamePiece.setMode(GamePiece.Mode.ALGAE)))
         .withName(
             String.format(
                 "EndEffector intakeAlgae (V=%.1f, trip=%.1fA, debounce=%.2fs)",
-                voltages.volts(), tripCurrentAmps, debounceSeconds));
+                voltages.volts().in(edu.wpi.first.units.Units.Volts),
+                tripCurrentAmps,
+                debounceSeconds));
   }
 
   /**

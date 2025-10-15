@@ -24,12 +24,12 @@ public class SubsystemConstants {
   public static enum ClawVoltages {
     DEFAULT(Volts.of(0), Seconds.of(0), Seconds.of(0)),
     CORAL_INTAKE(Volts.of(0), Seconds.of(0), Seconds.of(0)),
-    ALGAE_INTAKE(Volts.of(0), Seconds.of(0), Seconds.of(0)),
+    ALGAE_INTAKE(Volts.of(6.0), Seconds.of(0.10), Seconds.of(0)),
 
     CORAL_SCORE_L1(Volts.of(0), Seconds.of(0), Seconds.of(0)),
     CORAL_SCORE_L2(Volts.of(0), Seconds.of(0), Seconds.of(0)),
     CORAL_SCORE_L3(Volts.of(0), Seconds.of(0), Seconds.of(0)),
-    CORAL_SCORE_L4(Volts.of(0), Seconds.of(0), Seconds.of(0)),
+    CORAL_SCORE_L4(Volts.of(6), Seconds.of(0), Seconds.of(0.25)),
 
     ALGAE_PROCESSOR(Volts.of(0), Seconds.of(0), Seconds.of(0)),
     ALGAE_NET(Volts.of(0), Seconds.of(0), Seconds.of(0));
@@ -101,8 +101,8 @@ public class SubsystemConstants {
     L2Score(Degrees.of(-140)),
     L3Score(Degrees.of(-140)),
     L4Score(Degrees.of(-120)),
-    ReefGrabAlgae(Degrees.of(35)),
-    ReefSCAlgae(Degrees.of(-45)),
+    ReefGrabAlgae(Degrees.of(135)),
+    ReefSCAlgae(Degrees.of(-130)),
     GrabAlgaeIntermediate(Degrees.of(90)),
     AlgaeTransit(Degrees.of(90)),
     Test(Degrees.of(-180));

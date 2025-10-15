@@ -33,7 +33,7 @@ import yams.telemetry.SmartMotorControllerTelemetryConfig;
 
 public class WristSubsystem extends SubsystemBase {
 
-  private final TalonFX armMotor =
+  private final TalonFX wristMotor =
       new TalonFX(SubsystemConstants.Wrist_ID, SubsystemConstants.CANBUS);
   private final SmartMotorControllerTelemetryConfig motorTelemetryConfig =
       new SmartMotorControllerTelemetryConfig()
@@ -61,7 +61,7 @@ public class WristSubsystem extends SubsystemBase {
           .withControlMode(ControlMode.CLOSED_LOOP)
           .withStartingPosition(Degrees.of(0));
   private final SmartMotorController motor =
-      new TalonFXWrapper(armMotor, DCMotor.getKrakenX60(1), motorConfig);
+      new TalonFXWrapper(wristMotor, DCMotor.getKrakenX60(1), motorConfig);
   private final MechanismPositionConfig robotToMechanism =
       new MechanismPositionConfig()
           .withMaxRobotHeight(Meters.of(1.5))
@@ -77,21 +77,25 @@ public class WristSubsystem extends SubsystemBase {
           .withStartingPosition(Degrees.of(0))
           .withHorizontalZero(Degrees.of(0))
           .withMechanismPositionConfig(robotToMechanism);
-  private final Arm arm = new Arm(m_config);
+  private final Arm wrist = new Arm(m_config);
 
   public WristSubsystem() {}
 
   public void periodic() {
-    arm.updateTelemetry();
+    wrist.updateTelemetry();
   }
 
   public void simulationPeriodic() {
-    arm.simIterate();
+    wrist.simIterate();
   }
 
   public Command armCmd(double dutycycle) {
-    return arm.set(dutycycle);
+    return wrist.set(dutycycle);
   }
+
+  public void holdAlgaeIdle() {}
+
+  public void idle() {}
 
   // public class WristCommands {
   //   public static Command to(WristSubsystem wrist, WristPosition pos) {
@@ -100,15 +104,20 @@ public class WristSubsystem extends SubsystemBase {
   // }
 
   public Command sysId() {
-    return arm.sysId(Volts.of(3), Volts.of(3).per(Second), Second.of(30));
+    return wrist.sysId(Volts.of(3), Volts.of(3).per(Second), Second.of(30));
   }
 
   public Angle getAngle() {
-    return arm.getAngle();
+    return wrist.getAngle();
+  }
+
+  // HW level void
+  public void setAngleHW(Angle angle) {
+    wrist.setAngle(angle);
   }
 
   public Command setAngle(Angle angle) {
-    return arm.setAngle(angle);
+    return wrist.setAngle(angle);
   }
 
   public boolean atAngle(Angle target) {
