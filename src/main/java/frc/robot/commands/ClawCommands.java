@@ -5,7 +5,7 @@ import static edu.wpi.first.units.Units.Volts;
 
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
-import frc.robot.GamePiece;
+import frc.robot.GamePieceState;
 import frc.robot.subsystems.SubsystemConstants;
 import frc.robot.subsystems.claw.ClawSubsystem;
 
@@ -14,20 +14,20 @@ public class ClawCommands {
   // private final ClawSubsystem claw;
   // public ClawCommands(ClawSubsystem claw) { this.claw = claw; }
 
-  public static Command setMode(GamePiece.Mode mode) {
-    return Commands.runOnce(() -> GamePiece.setMode(mode)).withName("SetMode CORAL");
+  public static Command setMode(GamePieceState.Mode mode) {
+    return Commands.runOnce(() -> GamePieceState.setMode(mode)).withName("SetMode CORAL");
   }
 
   public static Command setCoralMode() {
-    return setMode(GamePiece.Mode.CORAL);
+    return setMode(GamePieceState.Mode.CORAL);
   }
 
   public static Command setAlgaeMode() {
-    return setMode(GamePiece.Mode.ALGAE);
+    return setMode(GamePieceState.Mode.ALGAE);
   }
 
   public static Command clearMode() {
-    return setMode(GamePiece.Mode.NONE);
+    return setMode(GamePieceState.Mode.NONE);
   }
 
   /**

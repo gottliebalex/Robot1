@@ -9,7 +9,7 @@ import edu.wpi.first.wpilibj2.command.DeferredCommand;
 import frc.robot.FieldConstants;
 import frc.robot.FieldConstants.Reef.AlgaeMode;
 import frc.robot.FieldConstants.Reef.PipeSide;
-import frc.robot.GamePiece;
+import frc.robot.GamePieceState;
 import frc.robot.sensors.CoralSensor;
 import frc.robot.subsystems.SubsystemConstants;
 import frc.robot.subsystems.SubsystemConstants.ClawVoltages;
@@ -100,7 +100,7 @@ public final class IntakeCommands {
               // If canceled (e.g., second press), clear mode and any sim-detected state
               if (interrupted) {
                 try {
-                  GamePiece.setMode(GamePiece.Mode.NONE);
+                  GamePieceState.setMode(GamePieceState.Mode.NONE);
                 } catch (Exception ignored) {
                 }
                 try {
@@ -108,7 +108,7 @@ public final class IntakeCommands {
                 } catch (Exception ignored) {
                 }
               } else {
-                GamePiece.setMode(GamePiece.Mode.CORAL);
+                GamePieceState.setMode(GamePieceState.Mode.CORAL);
               }
             })
         .withName("Intake Coral");
@@ -239,7 +239,7 @@ public final class IntakeCommands {
                   ignoreTimer.hasElapsed(DEFAULT_START_IGNORE_S) && amps >= tripCurrentAmps;
               return debouncer.calculate(aboveThreshhold) || forceTrip.getAsBoolean();
             })
-        .andThen(Commands.runOnce(() -> GamePiece.setMode(GamePiece.Mode.ALGAE)))
+        .andThen(Commands.runOnce(() -> GamePieceState.setMode(GamePieceState.Mode.ALGAE)))
         .withName(
             String.format(
                 "EndEffector intakeAlgae (V=%.1f, trip=%.1fA, debounce=%.2fs)",

@@ -1,5 +1,5 @@
 // Copyright 2021-2025 FRC 6328
-// http://github.com/Mechanical-Advantage
+// http://github.com/Mechanical-Advantage/
 //
 // This program is free software; you can redistribute it and/or
 // modify it under the terms of the GNU General Public License
@@ -34,7 +34,8 @@ import edu.wpi.first.wpilibj2.command.button.JoystickButton;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine;
 import frc.robot.FieldConstants.Reef.AlgaeMode;
 import frc.robot.FieldConstants.Reef.PipeSide;
-import frc.robot.GamePiece.Mode;
+import frc.robot.GamePieceState.Mode;
+import frc.robot.commands.ClawCommands;
 import frc.robot.commands.DriveCommands;
 import frc.robot.commands.ElevatorCommands;
 import frc.robot.commands.IntakeCommands;
@@ -70,6 +71,7 @@ import org.littletonrobotics.junction.networktables.LoggedNetworkNumber;
  * subsystems, commands, and button mappings) should be declared here.
  */
 public class RobotContainer {
+
   // Subsystems
   private final Drive drive;
   private final Vision vision;
@@ -79,13 +81,28 @@ public class RobotContainer {
   private final CoralIntakeSubsystem coralIntake;
   private final ClawSubsystem claw;
   private final CoralSensor coralSensor;
+  private final GamePieceState gamePiece;
 
-  void applyWristDefault(Mode mode) {
-    applyWristDefault(GamePiece.getMode());
-    GamePiece.onModeChange(this::applyWristDefault);
+  public GamePieceState getGamePieceState() {
+    return gamePiece;
   }
 
-  // Controller
+  // Elastic control: dashboard chooser to set game piece mode on demand
+  private final LoggedDashboardChooser<Mode> gamePieceModeChooser;
+  private Mode lastModeFromChooser = null;
+
+  void applyWristDefault(Mode mode) {
+    if (wrist == null || wristCmds == null) return;
+    if (mode == Mode.ALGAE) {
+      wrist.setDefaultCommand(wristCmds.algaeIdle());
+    } else {
+      wrist.setDefaultCommand(wristCmds.idle());
+    }
+  }
+
+  private Command reachNetCmd; // hold the instance
+
+  // Controllers
   private final CommandXboxController controller = new CommandXboxController(0);
   private final GenericHID apacController = new GenericHID(1);
 
@@ -93,15 +110,21 @@ public class RobotContainer {
   private final LoggedDashboardChooser<Command> autoChooser;
   private final Map<Command, Pose2d> autoStartingPosesBlue = new HashMap<>();
   private final Map<Command, Pose2d> autoStartingPosesRed = new HashMap<>();
+
   private final LoggedDashboardChooser<StartPose> startPoseChooser;
   private final Map<StartPose, Pose2d> manualStartingPosesBlue = new HashMap<>();
   private final Map<StartPose, Pose2d> manualStartingPosesRed = new HashMap<>();
+
   // Supercycle mode chooser: Auto uses gamepad Start toggle; or force Supercycle/Grab
-  private final LoggedDashboardChooser<SCSelect> scModeChooser;
-  private final LoggedNetworkNumber ReefLevel = // auto align level selection
-      new LoggedNetworkNumber("Autopilot/ReefLevel", 4);
+  // Removed dashboard SC mode chooser to avoid duplicate controls; use GamePiece.Supercycle only
+  // private final LoggedDashboardChooser<SCSelect> scModeChooser;
+
+  // Auto align level selection
+  private final LoggedNetworkNumber ReefLevel = new LoggedNetworkNumber("Autopilot/ReefLevel", 4);
+
   // Selected pipe side for scoring (set by driver triggers/Y)
   private PipeSide selectedPipeSide = PipeSide.CENTER;
+
   // SIM-only: logged boolean to force algae trip (mirrored to /Sim/ForceAlgaeTrip NT topic)
   private LoggedNetworkBoolean simForceAlgaeTripToggle;
 
@@ -112,17 +135,15 @@ public class RobotContainer {
     RIGHT
   }
 
-  /** Supercycle selection for dashboard chooser. */
-  private enum SCSelect {
-    AUTO,
-    SUPERCYCLE,
-    GRAB
-  }
+  // Removed SCSelect enum along with the chooser
 
   /** The container for the robot. Contains subsystems, OI devices, and commands. */
   public RobotContainer() {
     // Cache alliance at init and update FieldConstants' precomputed views
     FieldConstants.refreshAllianceCache();
+
+    gamePiece = new GamePieceState();
+
     switch (Constants.currentMode) {
       case REAL:
         // Real robot, instantiate hardware IO implementations
@@ -133,19 +154,18 @@ public class RobotContainer {
                 new ModuleIOTalonFX(TunerConstants.FrontRight),
                 new ModuleIOTalonFX(TunerConstants.BackLeft),
                 new ModuleIOTalonFX(TunerConstants.BackRight));
-
         vision =
             new Vision(
                 drive::addVisionMeasurement,
                 new VisionIOPhotonVision("camera_0", robotToCamera0),
                 new VisionIOPhotonVision("camera_1", robotToCamera1));
-
         elevator = new ElevatorSubsystem();
         wrist = new WristSubsystem();
         wristCmds = new WristCommands(wrist);
         coralIntake = new CoralIntakeSubsystem();
         claw = new ClawSubsystem();
         coralSensor = new CoralSensor(SubsystemConstants.CANANDCOLOR_ID);
+
         break;
 
       case SIM:
@@ -157,7 +177,6 @@ public class RobotContainer {
                 new ModuleIOSim(TunerConstants.FrontRight),
                 new ModuleIOSim(TunerConstants.BackLeft),
                 new ModuleIOSim(TunerConstants.BackRight));
-
         vision =
             new Vision(
                 drive::addVisionMeasurement,
@@ -170,12 +189,13 @@ public class RobotContainer {
         claw = new ClawSubsystem();
         coralSensor = new CoralSensor(SubsystemConstants.CANANDCOLOR_ID);
 
-        // SIM-ONLY: Elastic toggle to force algae trip for intake
+        // SIM-ONLY: Elastic toggle to force algae trip
         simForceAlgaeTripToggle = new LoggedNetworkBoolean("Sim/Force Algae Trip", false);
         BooleanTopic forceAlgaeTripTopic =
             NetworkTableInstance.getDefault().getBooleanTopic("/Sim/ForceAlgaeTrip");
         BooleanPublisher forceAlgaeTripPublisher = forceAlgaeTripTopic.publish();
         forceAlgaeTripPublisher.set(false);
+
         // Mirror the Elastic toggle to the NT topic each loop (ignores disable)
         CommandScheduler.getInstance()
             .schedule(
@@ -192,7 +212,6 @@ public class RobotContainer {
                 new ModuleIO() {},
                 new ModuleIO() {},
                 new ModuleIO() {});
-
         vision = new Vision(drive::addVisionMeasurement, new VisionIO() {}, new VisionIO() {});
         elevator = null;
         wrist = null;
@@ -209,6 +228,7 @@ public class RobotContainer {
     // Add Choreo single-path auto: Start-J
     Command startJChoreo = Autos.choreoStartJ(drive);
     autoChooser.addOption("Start-J (Choreo)", startJChoreo);
+
     // Populate starting poses for Start-J if the trajectory is available
     try {
       PathPlannerPath p = PathPlannerPath.fromChoreoTrajectory("Start-J");
@@ -239,18 +259,19 @@ public class RobotContainer {
     startPoseChooser.addDefaultOption("None", StartPose.NONE);
     startPoseChooser.addOption("Left", StartPose.LEFT);
     startPoseChooser.addOption("Right", StartPose.RIGHT);
+
     manualStartingPosesBlue.put(StartPose.LEFT, FieldConstants.LEFT_STARTING_POSE_BLUE);
     manualStartingPosesRed.put(StartPose.LEFT, FieldConstants.LEFT_STARTING_POSE_RED);
     manualStartingPosesBlue.put(StartPose.RIGHT, FieldConstants.RIGHT_STARTING_POSE_BLUE);
     manualStartingPosesRed.put(StartPose.RIGHT, FieldConstants.RIGHT_STARTING_POSE_RED);
 
-    // Supercycle mode chooser
-    scModeChooser = new LoggedDashboardChooser<>("Autopilot/SC Mode");
-    scModeChooser.addDefaultOption("Auto (Start Toggle)", SCSelect.AUTO);
-    scModeChooser.addOption("Supercycle", SCSelect.SUPERCYCLE);
-    scModeChooser.addOption("Grab", SCSelect.GRAB);
+    // Game piece mode chooser: allows operator to set NONE/CORAL/ALGAE from Elastic
+    gamePieceModeChooser = new LoggedDashboardChooser<>("GamePiece/Mode Select");
+    gamePieceModeChooser.addDefaultOption("None", Mode.NONE);
+    gamePieceModeChooser.addOption("Coral", Mode.CORAL);
+    gamePieceModeChooser.addOption("Algae", Mode.ALGAE);
 
-    // Set up SysId routines
+    // SysId routines
     autoChooser.addOption(
         "Drive Wheel Radius Characterization", DriveCommands.wheelRadiusCharacterization(drive));
     autoChooser.addOption(
@@ -269,58 +290,47 @@ public class RobotContainer {
     // Configure the button bindings
     configureButtonBindings();
 
+    // Monitor dashboard mode chooser and apply on change (ignores disable)
+    CommandScheduler.getInstance()
+        .schedule(
+            Commands.run(
+                    () -> {
+                      var sel = gamePieceModeChooser.get();
+                      if (sel != null && sel != lastModeFromChooser) {
+                        GamePieceState.setMode(sel);
+                        lastModeFromChooser = sel;
+                      }
+                    })
+                .ignoringDisable(true));
+
     // Default claw behavior: when carrying algae, actively hold using torque control.
-    // if (claw != null) {
-    claw.setDefaultCommand(
-        Commands.run(
-                () -> {
-                  if (GamePiece.getMode() == GamePiece.Mode.ALGAE) {
-                    claw.applyHoldTorque();
-                  } else {
-                    claw.stop();
-                  }
-                },
-                claw)
-            .withName("Claw Default Hold Algae"));
-    // }
+    if (claw != null) {
+      claw.setDefaultCommand(
+          Commands.run(
+                  () -> {
+                    if (GamePieceState.getMode() == GamePieceState.Mode.ALGAE) {
+                      claw.applyHoldTorque();
+                    } else {
+                      claw.stop();
+                    }
+                  },
+                  claw)
+              .withName("Claw Default Hold Algae"));
+    }
 
-    // Default wrist hold at 0 degrees (stowed)
-    // if (elevator != null && wrist != null) {
+    // Default wrist behavior follows game piece mode
+    GamePieceState.onModeChange(this::applyWristDefault);
+    applyWristDefault(GamePieceState.getMode());
 
-    wrist.setDefaultCommand(
-        Commands.run(
-            () -> {
-              if (GamePiece.getMode() == GamePiece.Mode.ALGAE) {
-                Commands.sequence(wrist.setAngle(SubsystemConstants.WristPosition.AlgaeTransit.angle()),
-                Commands.run(() -> {}, wrist));
-              } else {
-                Commands.sequence(wrist.setAngle(SubsystemConstants.WristPosition.Stowed.angle()),
-                Commands.run(() -> {}, wrist));
-
-              }
-
-              // Angle target =
-              //     (GamePiece.getMode() == GamePiece.Mode.ALGAE)
-              //         ? SubsystemConstants.WristPosition.AlgaeTransit.angle()
-              //         : SubsystemConstants.WristPosition.Stowed.angle();
-              // wrist.setAngle(target);
-            },
-            wrist));
-
-    // wrist.setDefaultCommand(
-    //     Commands.sequence(
-    //             wrist.setAngle(SubsystemConstants.WristPosition.Stowed.angle()),
-    //             Commands.run(() -> {}, wrist))
-    //         .withName("Wrist Default Command (0 deg)"));
-
-    elevator.setDefaultCommand(
-        Commands.sequence(
-                elevator.setHeight(SubsystemConstants.ElevatorPosition.Down.distance()),
-                Commands.run(() -> {}, elevator))
-            .withName("Elevator Default Command"));
+    // Elevator default command
+    if (elevator != null) {
+      elevator.setDefaultCommand(
+          Commands.sequence(
+                  elevator.setHeight(SubsystemConstants.ElevatorPosition.Down.distance()),
+                  Commands.run(() -> {}, elevator))
+              .withName("Elevator Default Command"));
+    }
   }
-
-  // }
 
   /**
    * Use this method to define your button->command mappings. Buttons can be created by
@@ -356,13 +366,13 @@ public class RobotContainer {
         .onTrue(
             Commands.runOnce(
                 () -> {
-                  GamePiece.toggleSupercycle();
+                  GamePieceState.toggleSupercycle();
                   System.out.println(
                       "Supercycle mode: "
-                          + (GamePiece.isSupercycleEnabled() ? "ENABLED" : "DISABLED"));
+                          + (GamePieceState.isSupercycleEnabled() ? "ENABLED" : "DISABLED"));
                 }));
 
-    // Reset gyro to 0° when B button is pressed
+    // Reset gyro to 0° when B button is pressed
     controller
         .b()
         .onTrue(
@@ -373,8 +383,46 @@ public class RobotContainer {
                     drive)
                 .ignoringDisable(true));
 
-    // select level standoff and triggers/Y for alignment
+    controller
+        .y()
+        .onTrue(
+            Commands.runOnce(
+                () -> {
+                  if (!gamePiece.isNetReady()) {
+                    // first press
+                    reachNetCmd = ScoreCommands.scoreNet(elevator, claw, wrist);
+                    reachNetCmd.schedule();
+                    gamePiece.setNetReady(true);
 
+                  } else {
+                    // second press
+                    if (reachNetCmd != null && reachNetCmd.isScheduled()) {
+                      reachNetCmd.cancel();
+                    }
+                    Commands.sequence(
+                            ClawCommands.runRollers(
+                                claw, SubsystemConstants.ClawVoltages.ALGAE_NET),
+                            Commands.parallel(
+                                Commands.deadline(
+                                    elevator.waitUntilAtHeight(
+                                        SubsystemConstants.ElevatorPosition.Down.distance()),
+                                    elevator.setHeight(
+                                        SubsystemConstants.ElevatorPosition.Down.distance())),
+                                Commands.deadline(
+                                    wrist.waitUntilAtAngle(
+                                        SubsystemConstants.WristPosition.Stowed.angle()),
+                                    wrist.setAngle(
+                                        SubsystemConstants.WristPosition.Stowed.angle()))))
+                        .finallyDo(
+                            interuppted -> {
+                              gamePiece.reset();
+                              GamePieceState.setMode(Mode.NONE);
+                            })
+                        .schedule();
+                  }
+                }));
+
+    // APAC level selection (buttons 8-11)
     new JoystickButton(apacController, 8)
         .onTrue(
             Commands.runOnce(
@@ -404,27 +452,10 @@ public class RobotContainer {
                   System.out.println("Autopilot level set to L4 (APAC)");
                 }));
 
-    // Left/Right triggers: choose LEFT/RIGHT pipe side and align while held
-    // controller.leftTrigger().onTrue(Commands.runOnce(() -> selectedPipeSide = PipeSide.LEFT));
-    // controller
-    //     .leftTrigger()
-    //     .onTrue(
-    //         DriveCommands.alignToNearestAllianceReefFace(
-    //             drive, () -> getSelectedReefLevel(), PipeSide.LEFT));
-    // //controller.rightTrigger().onTrue(Commands.runOnce(() -> selectedPipeSide =
-    // PipeSide.RIGHT));
-    // controller
-    //     .rightTrigger()
-    //     .onTrue(
-    //         DriveCommands.alignToNearestAllianceReefFace(
-    //             drive, () -> getSelectedReefLevel(), PipeSide.RIGHT));
-
-    // Y button repurposed below (when mechanisms present) to run reef algae intake
+    // Left/Right triggers for pipe side + align are commented out; Y repurposed below.
 
     if (elevator != null && wrist != null) {
-      // Left/Right bumpers: run scoring on LEFT/RIGHT pipe at selected level
-      // Single factory: always call the end-effector variant; it will
-      // branch at runtime based on supercycle toggle and endEffector presence.
+      // Left bumper: score on LEFT pipe at selected level (SC-aware)
       controller
           .leftBumper()
           .onTrue(
@@ -434,22 +465,15 @@ public class RobotContainer {
                     if (lvl < 2) lvl = 2;
                     if (lvl > 4) lvl = 4;
 
-                    // Resolve Supercycle mode from chooser, or fall back to Start-toggle state
-                    var sel = scModeChooser.get();
-                    var mode =
-                        sel == SCSelect.SUPERCYCLE
-                            ? AlgaeMode.SUPERCYCLE
-                            : sel == SCSelect.GRAB
-                                ? AlgaeMode.GRAB
-                                : (GamePiece.isSupercycleEnabled()
-                                    ? AlgaeMode.SUPERCYCLE
-                                    : AlgaeMode.GRAB);
+                    boolean sc = GamePieceState.isSupercycleEnabled();
+                    var mode = sc ? AlgaeMode.SUPERCYCLE : AlgaeMode.GRAB;
+                    System.out.println("SC toggle=" + sc + ", using mode=" + mode);
 
-                    // Algae intake parameters (from preset; OK if zero until tuned)
                     var preset = SubsystemConstants.ClawVoltages.ALGAE_INTAKE;
                     double volts = preset.volts().in(edu.wpi.first.units.Units.Volts);
                     double rampS = preset.rampS().in(edu.wpi.first.units.Units.Seconds);
                     double timeoutS = preset.timeoutS().in(edu.wpi.first.units.Units.Seconds);
+
                     double tripCurrentAmps = 25.0;
                     double debounceSeconds = 0.10;
 
@@ -470,6 +494,7 @@ public class RobotContainer {
                   },
                   java.util.Set.of(drive, elevator, wrist)));
 
+      // Right bumper: score on RIGHT pipe at selected level (SC-aware)
       controller
           .rightBumper()
           .onTrue(
@@ -479,20 +504,15 @@ public class RobotContainer {
                     if (lvl < 2) lvl = 2;
                     if (lvl > 4) lvl = 4;
 
-                    var sel = scModeChooser.get();
-                    var mode =
-                        sel == SCSelect.SUPERCYCLE
-                            ? AlgaeMode.SUPERCYCLE
-                            : sel == SCSelect.GRAB
-                                ? AlgaeMode.GRAB
-                                : (GamePiece.isSupercycleEnabled()
-                                    ? AlgaeMode.SUPERCYCLE
-                                    : AlgaeMode.GRAB);
+                    boolean sc = GamePieceState.isSupercycleEnabled();
+                    var mode = sc ? AlgaeMode.SUPERCYCLE : AlgaeMode.GRAB;
+                    System.out.println("SC toggle=" + sc + ", using mode=" + mode);
 
                     var preset = SubsystemConstants.ClawVoltages.ALGAE_INTAKE;
                     double volts = preset.volts().in(edu.wpi.first.units.Units.Volts);
                     double rampS = preset.rampS().in(edu.wpi.first.units.Units.Seconds);
                     double timeoutS = preset.timeoutS().in(edu.wpi.first.units.Units.Seconds);
+
                     double tripCurrentAmps = 25.0;
                     double debounceSeconds = 0.10;
 
@@ -513,32 +533,10 @@ public class RobotContainer {
                   },
                   java.util.Set.of(drive, elevator, wrist)));
 
-      // Y button: run reef algae intake (L2/L3 based on selected level)
-      // controller
-      //     .y()
-      //     .onTrue(
-      //         Commands.defer(
-      //             () -> {
-      //               int lvl =
-      //               return frc.robot.commands.IntakeCommands.intakeReefAlgae(
-      //                   drive, endEffector, elevator, wrist, lvl);
-      //             },
-      //             java.util.Set.of(drive, endEffector, elevator, wrist)));
-
-      // Cancel button
+      // Cancel button (D-pad down): stow wrist + elevator in parallel
       controller
           .povDown()
-          .onTrue(
-              Commands.runOnce(CommandScheduler.getInstance()::cancelAll)
-                  .andThen(
-                      Commands.parallel(
-                          WristCommands.Stowed(wrist), ElevatorCommands.Down(elevator))));
-      // // for testing elevator/wrist
-      // new JoystickButton(apacController, 5).onTrue(WristCommands.Stowed(wrist));
-      // new JoystickButton(apacController, 6).onTrue(WristCommands.AlgaeIntake(wrist));
-      // new JoystickButton(apacController, 7).onTrue(WristCommands.TestWrist(wrist));
-      // new JoystickButton(apacController, 12).onTrue(ElevatorCommands.Down(elevator));
-      // new JoystickButton(apacController, 13).onTrue(ElevatorCommands.L3Score(elevator));
+          .onTrue(Commands.parallel(WristCommands.Stowed(wrist), ElevatorCommands.Down(elevator)));
 
       // Coral intake sequence and simulation helper
       if (coralIntake != null && claw != null) {
@@ -547,9 +545,9 @@ public class RobotContainer {
                 IntakeCommands.intakeCoral(coralIntake, claw, elevator, coralSensor, 8.0, 8.0)
                     .withName("Intake Coral"));
 
-        // Simulate sensor trip (toggles SmartDashboard Sim/CoralDetected briefly)
-        new JoystickButton(apacController, 2)
-            .onTrue(IntakeCommands.simulateCoralDetectionPulse(coralSensor));
+        // // Simulate sensor trip (toggles SmartDashboard Sim/CoralDetected briefly)
+        // new JoystickButton(apacController, 2)
+        //     .onTrue(IntakeCommands.simulateCoralDetectionPulse(coralSensor));
 
         // SIM: While held, force algae trip via dashboard toggle (mirrored to NT topic)
         if (simForceAlgaeTripToggle != null) {
@@ -585,7 +583,7 @@ public class RobotContainer {
         : autoStartingPosesRed.get(selected);
   }
 
-  /* Returns the manually selected starting pose. */
+  /** Returns the manually selected starting pose. */
   private Pose2d getManualStartingPose() {
     StartPose selected = startPoseChooser.get();
     return FieldConstants.isBlueAlliance()
@@ -593,7 +591,7 @@ public class RobotContainer {
         : manualStartingPosesRed.get(selected);
   }
 
-  /* Applies the manually selected starting pose. Something about this is not working*/
+  /** Applies the manually selected starting pose. Something about this is not working */
   public void applyManualStartingPose() {
     Pose2d pose = getManualStartingPose();
     if (pose != null) {

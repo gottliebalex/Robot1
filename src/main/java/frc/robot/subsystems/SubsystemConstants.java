@@ -31,8 +31,8 @@ public class SubsystemConstants {
     CORAL_SCORE_L3(Volts.of(0), Seconds.of(0), Seconds.of(0)),
     CORAL_SCORE_L4(Volts.of(6), Seconds.of(0), Seconds.of(0.25)),
 
-    ALGAE_PROCESSOR(Volts.of(0), Seconds.of(0), Seconds.of(0)),
-    ALGAE_NET(Volts.of(0), Seconds.of(0), Seconds.of(0));
+    ALGAE_PROCESSOR(Volts.of(4), Seconds.of(0), Seconds.of(1)),
+    ALGAE_NET(Volts.of(7), Seconds.of(0), Seconds.of(0.5));
 
     private final Voltage volts;
     private final Time rampS;
@@ -80,7 +80,7 @@ public class SubsystemConstants {
     L2SCAlgae(Inches.of(42)),
     L3GrabAlgae(Inches.of(35)),
     L3SCAlgae(Inches.of(45)),
-    Barge(Inches.of(85)),
+    AlgaeNet(Inches.of(85)),
     Zero(Inches.of(0));
 
     private final Distance distance;
@@ -104,7 +104,9 @@ public class SubsystemConstants {
     ReefGrabAlgae(Degrees.of(135)),
     ReefSCAlgae(Degrees.of(-130)),
     GrabAlgaeIntermediate(Degrees.of(90)),
-    AlgaeTransit(Degrees.of(90)),
+    AlgaeProcessor(Degrees.of(-175)),
+    AlgaeTransit(Degrees.of(-270)),
+    AlgaeNet(Degrees.of(-220)),
     Test(Degrees.of(-180));
 
     private final Angle angle;

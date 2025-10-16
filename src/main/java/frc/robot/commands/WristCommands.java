@@ -29,14 +29,14 @@ public class WristCommands {
   }
 
   public Command algaeIdle() {
-    return Commands.startEnd(
-        () -> wrist.setAngle(SubsystemConstants.WristPosition.AlgaeTransit.angle()),
-        () -> {},
-        wrist);
+    return Commands.run(
+            () -> wrist.setAngleHW(SubsystemConstants.WristPosition.AlgaeTransit.angle()), wrist)
+        .withName("Wrist Idle (Algae)");
   }
 
   public Command idle() {
-    return Commands.startEnd(
-        () -> wrist.setAngle(SubsystemConstants.WristPosition.Stowed.angle()), () -> {}, wrist);
+    return Commands.run(
+            () -> wrist.setAngleHW(SubsystemConstants.WristPosition.Stowed.angle()), wrist)
+        .withName("Wrist Idle (Stowed)");
   }
 }

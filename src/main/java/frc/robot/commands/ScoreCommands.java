@@ -8,7 +8,7 @@ import edu.wpi.first.wpilibj2.command.Commands;
 import frc.robot.FieldConstants;
 import frc.robot.FieldConstants.Reef.AlgaeMode;
 import frc.robot.FieldConstants.Reef.PipeSide;
-import frc.robot.GamePiece;
+import frc.robot.GamePieceState;
 import frc.robot.subsystems.SubsystemConstants;
 import frc.robot.subsystems.SubsystemConstants.ClawVoltages;
 import frc.robot.subsystems.claw.ClawSubsystem;
@@ -16,6 +16,7 @@ import frc.robot.subsystems.drive.Drive;
 import frc.robot.subsystems.elevator.ElevatorSubsystem;
 import frc.robot.subsystems.wrist.WristSubsystem;
 import java.util.function.BooleanSupplier;
+import org.littletonrobotics.junction.Logger;
 
 /** Composite scoring commands for reef levels. */
 public final class ScoreCommands {
@@ -71,7 +72,9 @@ public final class ScoreCommands {
                     wrist.waitUntilAtAngle(stowWrist).withTimeout(1), wrist.setAngle(stowWrist))));
 
     return Commands.sequence(
-            reachTargets, postScore, Commands.runOnce(() -> GamePiece.setMode(GamePiece.Mode.NONE)))
+            reachTargets,
+            postScore,
+            Commands.runOnce(() -> GamePieceState.setMode(GamePieceState.Mode.NONE)))
         .withName("Score L" + level);
   }
 
@@ -121,7 +124,9 @@ public final class ScoreCommands {
             );
 
     return Commands.sequence(
-            reachTargets, postScore, Commands.runOnce(() -> GamePiece.setMode(GamePiece.Mode.NONE)))
+            reachTargets,
+            postScore,
+            Commands.runOnce(() -> GamePieceState.setMode(GamePieceState.Mode.NONE)))
         .withName("Score L" + level + " (" + side + ")");
   }
 
@@ -242,7 +247,10 @@ public final class ScoreCommands {
 
     Command SCorNOT;
 
+    Logger.recordOutput("Autopilot/SCModeResolved", mode.name());
+
     if (mode == AlgaeMode.SUPERCYCLE) {
+      Logger.recordOutput("Autopilot/SCBranch", "SUPERCYCLE");
       SCorNOT =
           Commands.sequence(
               Commands.parallel(
@@ -260,6 +268,7 @@ public final class ScoreCommands {
                   elevator.setHeight(stowElevator),
                   wrist.setAngle(algaeTransit)));
     } else {
+      Logger.recordOutput("Autopilot/SCBranch", "GRAB");
       SCorNOT =
           Commands.deadline(
               Commands.waitUntil(() -> elevator.atHeight(stowElevator) && wrist.atAngle(stowWrist)),
@@ -281,7 +290,7 @@ public final class ScoreCommands {
     double tripCurrentAmps = SubsystemConstants.kAlgaeTripCurrent;
     double debounceSeconds = SubsystemConstants.kAlgaeDebounceS;
 
-    boolean supercycle = GamePiece.isSupercycleEnabled();
+    boolean supercycle = GamePieceState.isSupercycleEnabled();
     var SCmode = supercycle ? AlgaeMode.SUPERCYCLE : AlgaeMode.GRAB;
 
     BooleanSupplier forceTrip = () -> false;
@@ -300,5 +309,62 @@ public final class ScoreCommands {
         tripCurrentAmps,
         debounceSeconds,
         forceTrip);
+  }
+
+  public static Command processor(
+      ElevatorSubsystem elevator, ClawSubsystem claw, WristSubsystem wrist) {
+
+    Command runRollers =
+        ClawCommands.runRollers(claw, SubsystemConstants.ClawVoltages.ALGAE_PROCESSOR);
+
+    Command reachProcessorSetpoints =
+        Commands.parallel(
+            Commands.deadline(
+                elevator.waitUntilAtHeight(SubsystemConstants.ElevatorPosition.Down.distance()),
+                elevator.setHeight(SubsystemConstants.ElevatorPosition.Down.distance())),
+            Commands.deadline(
+                wrist.waitUntilAtAngle(SubsystemConstants.WristPosition.AlgaeProcessor.angle()),
+                wrist.setAngle(SubsystemConstants.WristPosition.AlgaeProcessor.angle())));
+
+    Command stow =
+        Commands.deadline(
+            wrist.waitUntilAtAngle(SubsystemConstants.WristPosition.Stowed.angle()),
+            wrist.setAngle(SubsystemConstants.WristPosition.Stowed.angle()));
+
+    return Commands.sequence(reachProcessorSetpoints, runRollers, stow);
+  }
+
+  public static Command scoreNet(
+      ElevatorSubsystem elevator, ClawSubsystem claw, WristSubsystem wrist) {
+
+    Command reachNetSetpoints =
+        Commands.parallel(
+            Commands.deadline(
+                elevator.waitUntilAtHeight(SubsystemConstants.ElevatorPosition.AlgaeNet.distance()),
+                elevator.setHeight(SubsystemConstants.ElevatorPosition.AlgaeNet.distance())),
+            Commands.deadline(
+                wrist.waitUntilAtAngle(SubsystemConstants.WristPosition.AlgaeNet.angle()),
+                wrist.setAngle(SubsystemConstants.WristPosition.AlgaeNet.angle())),
+            Commands.parallel(
+                Commands.run(
+                    () ->
+                        elevator.setHeight(
+                            SubsystemConstants.ElevatorPosition.AlgaeNet.distance())),
+                Commands.run(
+                    () -> wrist.setAngle(SubsystemConstants.WristPosition.AlgaeNet.angle()))));
+
+    Command ejectAlgae =
+        ClawCommands.runRollers(claw, SubsystemConstants.ClawVoltages.ALGAE_PROCESSOR);
+
+    Command stow =
+        Commands.parallel(
+            Commands.deadline(
+                elevator.waitUntilAtHeight(SubsystemConstants.ElevatorPosition.Down.distance()),
+                elevator.setHeight(SubsystemConstants.ElevatorPosition.Down.distance())),
+            Commands.deadline(
+                wrist.waitUntilAtAngle(SubsystemConstants.WristPosition.Stowed.angle()),
+                wrist.setAngle(SubsystemConstants.WristPosition.Stowed.angle())));
+
+    return reachNetSetpoints;
   }
 }
